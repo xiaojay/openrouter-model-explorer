@@ -1,0 +1,11 @@
+name = "openrouter-models"
+main = "src/worker.py"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["python_workers"]
+
+[triggers]
+crons = ["0 * * * *"]
+
+[[kv_namespaces]]
+binding = "MODELS_KV"
+id = "YOUR_KV_NAMESPACE_ID"

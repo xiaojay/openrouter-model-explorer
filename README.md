@@ -1,4 +1,4 @@
-# OpenRouter Models
+# OpenRouter Model Explorer
 
 一个自动抓取 [OpenRouter](https://openrouter.ai/) 全部 AI 模型信息并生成对比页面的工具。
 

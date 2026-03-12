@@ -980,6 +980,14 @@ tbody tr.row-selected:hover {{
   </div>
 </div>
 
+<footer style="text-align:center;padding:32px 0 24px;color:var(--text-dim);font-size:13px;">
+  <a href="https://github.com/xiaojay/openrouter-model-explorer" target="_blank" rel="noopener"
+     style="color:var(--text-dim);text-decoration:none;transition:color .2s;"
+     onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-dim)'">
+    &#9733; GitHub: openrouter-model-explorer
+  </a>
+</footer>
+
 <script>
 const ALL_MODELS = {models_json};
 const PROVIDERS = {providers_json};

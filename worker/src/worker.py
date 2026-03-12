@@ -11,6 +11,7 @@ from js import Response, fetch, Headers
 
 
 KV_KEY = "models_html"
+KV_KEY_FLAGSHIP = "flagship_html"
 
 
 # ── Fetch handler ──────────────────────────────────────────────────────────
@@ -22,8 +23,11 @@ async def on_fetch(request, env):
         return Response.new("Refreshed!", headers=Headers.new({"content-type": "text/plain"}.items()))
 
     if "/flagship" in url:
-        html = generate_flagship_html()
-        return Response.new(html, headers=Headers.new({"content-type": "text/html;charset=UTF-8"}.items()))
+        html = await env.MODELS_KV.get(KV_KEY_FLAGSHIP)
+        if not html:
+            await update_models(env)
+            html = await env.MODELS_KV.get(KV_KEY_FLAGSHIP)
+        return Response.new(html or "No data yet.", headers=Headers.new({"content-type": "text/html;charset=UTF-8"}.items()))
 
     html = await env.MODELS_KV.get(KV_KEY)
     if not html:
@@ -50,6 +54,8 @@ async def update_models(env):
     fetch_time = datetime.now(timezone.utc)
     html = generate_html(models, fetch_time)
     await env.MODELS_KV.put(KV_KEY, html)
+    flagship_html = generate_flagship_html()
+    await env.MODELS_KV.put(KV_KEY_FLAGSHIP, flagship_html)
 
 
 async def fetch_models():

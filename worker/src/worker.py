@@ -21,6 +21,10 @@ async def on_fetch(request, env):
         await update_models(env)
         return Response.new("Refreshed!", headers=Headers.new({"content-type": "text/plain"}.items()))
 
+    if "/flagship" in url:
+        html = generate_flagship_html()
+        return Response.new(html, headers=Headers.new({"content-type": "text/html;charset=UTF-8"}.items()))
+
     html = await env.MODELS_KV.get(KV_KEY)
     if not html:
         await update_models(env)
@@ -866,6 +870,7 @@ tbody tr.row-selected:hover {{
       <h1 data-i18n="title">OpenRouter Model Explorer</h1>
     </div>
     <div class="header-right">
+      <a href="/flagship" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:20px;background:linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15));border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:13px;font-weight:700;text-decoration:none;transition:all .25s;white-space:nowrap;" onmouseover="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.25),rgba(167,139,250,0.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15))'">🏆 旗舰模型对比</a>
       <div class="toggle-group">
         <button class="toggle-pill theme-toggle" id="themeToggle" title="Toggle light/dark">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
@@ -1427,3 +1432,275 @@ renderTable();
 </body>
 </html>"""
     return html
+
+# ── Flagship models comparison page ───────────────────────────────────────
+
+def generate_flagship_html():
+    updated = "2026-03-12"
+    models = [
+        {"provider":"OpenAI","logo":"🟢","model":"GPT-5.4","model_id":"openai/gpt-5.4","params":"~1.5T (MoE)","context":"256K","ctx_num":256000,"input_price":15.00,"output_price":60.00,"modality":"text+image+audio","reasoning":"✅","open_source":"❌","release":"2026-02","highlight":"最强综合性能，o3推理最优"},
+        {"provider":"Google","logo":"🔵","model":"Gemini 3.1 Ultra","model_id":"google/gemini-3.1-ultra","params":"未公开","context":"1M","ctx_num":1000000,"input_price":10.00,"output_price":30.00,"modality":"text+image+video+audio","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"超长上下文，全模态领先"},
+        {"provider":"Google","logo":"🔵","model":"Gemini 3.1 Flash","model_id":"google/gemini-3.1-flash","params":"未公开","context":"1M","ctx_num":1000000,"input_price":0.15,"output_price":0.60,"modality":"text+image+video+audio","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"极速低价，性价比最强"},
+        {"provider":"Anthropic","logo":"🟤","model":"Claude Opus 4","model_id":"anthropic/claude-opus-4-6","params":"未公开","context":"200K","ctx_num":200000,"input_price":15.00,"output_price":75.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2025-06","highlight":"代码/推理首选，安全性最佳"},
+        {"provider":"Anthropic","logo":"🟤","model":"Claude Sonnet 4.6","model_id":"anthropic/claude-sonnet-4-6","params":"未公开","context":"200K","ctx_num":200000,"input_price":3.00,"output_price":15.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"Opus 80%能力，1/5价格"},
+        {"provider":"xAI / Grok","logo":"⚫","model":"Grok 4","model_id":"x-ai/grok-4","params":"未公开","context":"128K","ctx_num":128000,"input_price":3.00,"output_price":15.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"X/Twitter数据加持，实时搜索"},
+        {"provider":"MiniMax","logo":"🟣","model":"MiniMax M2.5","model_id":"minimax/minimax-m2.5","params":"230B (MoE, 10B激活)","context":"1M","ctx_num":1000000,"input_price":0.90,"output_price":2.70,"modality":"text+image+video+audio","reasoning":"✅","open_source":"✅","release":"2026-02","highlight":"国产全模态开源，SWE-Bench 80.2%"},
+        {"provider":"Moonshot / Kimi","logo":"🌙","model":"Kimi K2.5","model_id":"moonshot/kimi-k2.5","params":"未公开","context":"128K","ctx_num":128000,"input_price":1.00,"output_price":3.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2025-12","highlight":"长文档处理领先，中文最优"},
+        {"provider":"DeepSeek","logo":"🐋","model":"DeepSeek V3","model_id":"deepseek/deepseek-chat","params":"671B (MoE, 37B激活)","context":"128K","ctx_num":128000,"input_price":0.27,"output_price":1.10,"modality":"text","reasoning":"❌","open_source":"✅","release":"2024-12","highlight":"开源性价比之王，极低价格"},
+        {"provider":"DeepSeek","logo":"🐋","model":"DeepSeek R1","model_id":"deepseek/deepseek-r1","params":"671B (MoE)","context":"128K","ctx_num":128000,"input_price":0.55,"output_price":2.19,"modality":"text","reasoning":"✅","open_source":"✅","release":"2025-01","highlight":"开源推理模型标杆，媲美o1"},
+        {"provider":"Alibaba / Qwen","logo":"🟠","model":"Qwen3.5-72B","model_id":"qwen/qwen3.5-72b-instruct","params":"72B","context":"128K","ctx_num":128000,"input_price":0.40,"output_price":1.20,"modality":"text+image","reasoning":"✅","open_source":"✅","release":"2026-01","highlight":"开源旗舰，中英双语顶尖，thinking可控"},
+        {"provider":"Alibaba / Qwen","logo":"🟠","model":"Qwen3-235B-A22B","model_id":"qwen/qwen3-235b-a22b","params":"235B (MoE, 22B激活)","context":"128K","ctx_num":128000,"input_price":0.14,"output_price":0.60,"modality":"text","reasoning":"✅","open_source":"✅","release":"2025-12","highlight":"超大MoE开源，极低激活成本"},
+        {"provider":"智谱 / z.ai","logo":"🧩","model":"GLM-5","model_id":"zhipu/glm-5","params":"未公开","context":"128K","ctx_num":128000,"input_price":1.00,"output_price":4.00,"modality":"text+image","reasoning":"✅","open_source":"部分","release":"2026-01","highlight":"中文理解顶尖，代码能力强"},
+        {"provider":"NVIDIA","logo":"🟩","model":"Nemotron 3 Super","model_id":"nvidia/nemotron-3-super","params":"120B (MoE, 12B激活)","context":"1M","ctx_num":1000000,"input_price":0.50,"output_price":2.00,"modality":"text","reasoning":"✅","open_source":"✅","release":"2026-03","highlight":"混合Mamba-Transformer，完全开放"},
+    ]
+
+    models_json = json.dumps(models, ensure_ascii=False)
+
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旗舰模型对比 | OpenRouter Model Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+[data-theme="dark"] {{
+  --bg-deep: #0a0e17; --bg-surface: #111825; --bg-card: #1a2235;
+  --bg-hover: #212d45; --border: #2a3550; --border-bright: #3d4f6f;
+  --text-primary: #e2e8f0; --text-secondary: #8892a8; --text-dim: #5a6578;
+  --accent-cyan: #22d3ee; --accent-cyan-dim: rgba(34,211,238,0.12);
+  --accent-amber: #fbbf24; --accent-green: #34d399; --accent-rose: #fb7185;
+  --accent-violet: #a78bfa; --scrollbar-track: #0a0e17;
+}}
+[data-theme="light"] {{
+  --bg-deep: #f4f6f9; --bg-surface: #eaecf1; --bg-card: #ffffff;
+  --bg-hover: #f0f2f7; --border: #d5d9e2; --border-bright: #bfc5d2;
+  --text-primary: #1a1d26; --text-secondary: #555d6e; --text-dim: #8891a0;
+  --accent-cyan: #0891b2; --accent-cyan-dim: rgba(8,145,178,0.08);
+  --accent-amber: #d97706; --accent-green: #059669; --accent-rose: #e11d48;
+  --accent-violet: #7c3aed; --scrollbar-track: #f4f6f9;
+}}
+:root {{ --font-mono: 'DM Mono', monospace; --font-sans: 'Instrument Sans', system-ui, sans-serif; --radius: 8px; }}
+body {{ font-family: var(--font-sans); background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }}
+.container {{ max-width: 1700px; margin: 0 auto; padding: 32px 24px; }}
+.header {{ display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }}
+.header h1 {{ font-size: 26px; font-weight: 700; background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+.header-right {{ display: flex; gap: 12px; align-items: center; }}
+.nav-link {{ color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; transition: all .2s; }}
+.nav-link:hover {{ color: var(--accent-cyan); border-color: var(--accent-cyan); }}
+.meta {{ font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }}
+.toggle-pill {{ display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .25s; }}
+.toggle-pill:hover {{ border-color: var(--accent-cyan); color: var(--text-secondary); }}
+.summary {{ display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }}
+.summary-card {{ background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; flex: 1; min-width: 140px; }}
+.summary-card .label {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 4px; }}
+.summary-card .value {{ font-family: var(--font-mono); font-size: 20px; font-weight: 500; color: var(--accent-cyan); }}
+.summary-card .value.green {{ color: var(--accent-green); }}
+.summary-card .value.amber {{ color: var(--accent-amber); }}
+.controls {{ display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }}
+.search-box {{ position: relative; flex: 1; min-width: 220px; }}
+.search-box input {{ width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px 9px 38px; font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); outline: none; transition: border-color .2s; }}
+.search-box input:focus {{ border-color: var(--accent-cyan); }}
+.search-icon {{ position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; }}
+select {{ background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; font-size: 13px; color: var(--text-primary); outline: none; cursor: pointer; }}
+.table-wrap {{ border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }}
+.table-scroll {{ overflow-x: auto; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+thead {{ position: sticky; top: 0; z-index: 10; }}
+thead th {{ background: var(--bg-card); border-bottom: 2px solid var(--border-bright); padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; transition: color .2s; }}
+thead th:hover {{ color: var(--accent-cyan); }}
+thead th.sorted {{ color: var(--accent-cyan); }}
+thead th .sort-arrow {{ display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }}
+thead th.sorted .sort-arrow {{ opacity: 1; }}
+tbody tr {{ border-bottom: 1px solid var(--border); transition: background .15s; }}
+tbody tr:hover {{ background: var(--bg-hover); }}
+tbody td {{ padding: 10px 14px; vertical-align: middle; }}
+.logo {{ margin-right: 6px; }}
+.cell-provider {{ font-weight: 600; font-size: 12px; white-space: nowrap; }}
+.cell-model {{ min-width: 180px; }}
+.model-name {{ font-weight: 600; color: var(--text-primary); }}
+.model-id {{ font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }}
+.cell-ctx {{ font-family: var(--font-mono); color: var(--accent-amber); font-weight: 500; }}
+.cell-price {{ font-family: var(--font-mono); }}
+.price-free {{ color: var(--accent-green); font-weight: 500; }}
+.price-low {{ color: var(--accent-green); }}
+.price-mid {{ color: var(--accent-amber); }}
+.price-high {{ color: var(--accent-rose); }}
+.cell-center {{ text-align: center; font-size: 15px; }}
+.cell-release {{ font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; }}
+.cell-highlight {{ font-size: 12px; color: var(--text-secondary); min-width: 180px; }}
+.empty {{ text-align: center; padding: 50px; color: var(--text-dim); }}
+.note {{ margin-top: 16px; font-size: 12px; color: var(--text-dim); line-height: 1.8; }}
+.note a {{ color: var(--accent-cyan); text-decoration: none; }}
+footer {{ text-align: center; padding: 28px 0 20px; color: var(--text-dim); font-size: 13px; }}
+footer a {{ color: var(--text-dim); text-decoration: none; }}
+::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+::-webkit-scrollbar-track {{ background: var(--scrollbar-track); }}
+::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
+@media (max-width: 768px) {{
+  .header {{ flex-direction: column; align-items: flex-start; }}
+  .summary {{ gap: 8px; }}
+  .summary-card {{ min-width: 100px; padding: 10px 14px; }}
+  .summary-card .value {{ font-size: 16px; }}
+}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>🏆 旗舰模型对比</h1>
+      <div class="meta" style="margin-top:6px;">各厂商最新一代大语言模型 · 更新于 {updated}</div>
+    </div>
+    <div class="header-right">
+      <a href="/" class="nav-link">← 全量模型浏览</a>
+      <button class="toggle-pill" id="themeToggle">☀️ 切换主题</button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="summary-card"><div class="label">收录厂商</div><div class="value">10</div></div>
+    <div class="summary-card"><div class="label">收录模型</div><div class="value amber">14</div></div>
+    <div class="summary-card"><div class="label">开源模型</div><div class="value green">6</div></div>
+    <div class="summary-card"><div class="label">最大上下文</div><div class="value">1M</div></div>
+    <div class="summary-card"><div class="label">最低输入价</div><div class="value green">$0.14/M</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="搜索模型、厂商...">
+    </div>
+    <select id="filterOS"><option value="">全部</option><option value="yes">开源 ✅</option><option value="no">闭源 ❌</option></select>
+    <select id="filterReasoning"><option value="">推理：全部</option><option value="yes">支持推理 ✅</option><option value="no">不支持 ❌</option></select>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="provider">厂商 <span class="sort-arrow">↕</span></th>
+            <th data-sort="model">模型 <span class="sort-arrow">↕</span></th>
+            <th data-sort="params">参数规模 <span class="sort-arrow">↕</span></th>
+            <th data-sort="ctx_num">上下文 <span class="sort-arrow">↕</span></th>
+            <th data-sort="input_price">输入价 $/1M <span class="sort-arrow">↕</span></th>
+            <th data-sort="output_price">输出价 $/1M <span class="sort-arrow">↕</span></th>
+            <th data-sort="modality">模态 <span class="sort-arrow">↕</span></th>
+            <th data-sort="reasoning">推理 <span class="sort-arrow">↕</span></th>
+            <th data-sort="open_source">开源 <span class="sort-arrow">↕</span></th>
+            <th data-sort="release">发布 <span class="sort-arrow">↕</span></th>
+            <th>亮点</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">没有匹配的模型</div>
+  </div>
+
+  <div class="note">
+    💡 价格为参考报价（OpenRouter / 官网定价），可能随时更新。开源模型可自部署，按算力成本计。<br>
+    📅 数据截至 {updated}，各厂商实际最新价格以官网为准。点击表头可排序。<br>
+    🔗 全量模型浏览（实时抓取 OpenRouter 所有模型）→ <a href="/">models.jaylab.io</a>
+  </div>
+</div>
+
+<footer><a href="https://github.com/xiaojay/openrouter-model-explorer">★ GitHub: openrouter-model-explorer</a></footer>
+
+<script>
+const MODELS = {models_json};
+let sortKey = 'provider';
+let sortAsc = true;
+
+const savedTheme = localStorage.getItem('or-theme');
+if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+document.getElementById('themeToggle').addEventListener('click', () => {{
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('or-theme', next);
+}});
+
+function formatPrice(v) {{
+  if (v === 0) return '<span class="price-free">FREE</span>';
+  if (v < 1) return '<span class="price-low">$' + v.toFixed(2) + '</span>';
+  if (v < 10) return '<span class="price-mid">$' + v.toFixed(2) + '</span>';
+  return '<span class="price-high">$' + v.toFixed(2) + '</span>';
+}}
+
+function renderTable() {{
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const osFilter = document.getElementById('filterOS').value;
+  const reasonFilter = document.getElementById('filterReasoning').value;
+
+  let filtered = MODELS.filter(m => {{
+    if (q && !(m.provider + m.model + m.model_id + m.params + m.highlight).toLowerCase().includes(q)) return false;
+    if (osFilter === 'yes' && m.open_source !== '✅') return false;
+    if (osFilter === 'no' && m.open_source === '✅') return false;
+    if (reasonFilter === 'yes' && !m.reasoning.includes('✅')) return false;
+    if (reasonFilter === 'no' && m.reasoning.includes('✅')) return false;
+    return true;
+  }});
+
+  filtered.sort((a, b) => {{
+    let va = a[sortKey], vb = b[sortKey];
+    if (typeof va === 'number' && typeof vb === 'number') {{
+      return sortAsc ? va - vb : vb - va;
+    }}
+    va = String(va).toLowerCase();
+    vb = String(vb).toLowerCase();
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  }});
+
+  const tbody = document.getElementById('tableBody');
+  if (filtered.length === 0) {{
+    tbody.innerHTML = '';
+    document.getElementById('empty').style.display = 'block';
+    return;
+  }}
+  document.getElementById('empty').style.display = 'none';
+
+  tbody.innerHTML = filtered.map(m => `
+    <tr>
+      <td class="cell-provider"><span class="logo">${{m.logo}}</span>${{m.provider}}</td>
+      <td class="cell-model"><div class="model-name">${{m.model}}</div><div class="model-id">${{m.model_id}}</div></td>
+      <td>${{m.params}}</td>
+      <td class="cell-ctx">${{m.context}}</td>
+      <td class="cell-price">${{formatPrice(m.input_price)}}</td>
+      <td class="cell-price">${{formatPrice(m.output_price)}}</td>
+      <td>${{m.modality}}</td>
+      <td class="cell-center">${{m.reasoning}}</td>
+      <td class="cell-center">${{m.open_source}}</td>
+      <td class="cell-release">${{m.release}}</td>
+      <td class="cell-highlight">${{m.highlight}}</td>
+    </tr>
+  `).join('');
+
+  document.querySelectorAll('thead th').forEach(th => {{
+    const key = th.dataset.sort;
+    th.classList.toggle('sorted', key === sortKey);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = key === sortKey ? (sortAsc ? '↑' : '↓') : '↕';
+  }});
+}}
+
+document.querySelectorAll('thead th[data-sort]').forEach(th => {{
+  th.addEventListener('click', () => {{
+    const key = th.dataset.sort;
+    if (sortKey === key) sortAsc = !sortAsc;
+    else {{ sortKey = key; sortAsc = true; }}
+    renderTable();
+  }});
+}});
+
+document.getElementById('searchInput').addEventListener('input', renderTable);
+document.getElementById('filterOS').addEventListener('change', renderTable);
+document.getElementById('filterReasoning').addEventListener('change', renderTable);
+
+renderTable();
+</script>
+</body>
+</html>"""

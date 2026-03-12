@@ -2,10 +2,15 @@ name = "openrouter-models"
 main = "src/worker.py"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["python_workers"]
+workers_dev = true
 
 [triggers]
 crons = ["0 * * * *"]
 
 [[kv_namespaces]]
 binding = "MODELS_KV"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "44732c6079f1414eb1ea25fe472f3874"
+
+[[routes]]
+pattern = "models.jaylab.io/*"
+zone_name = "jaylab.io"

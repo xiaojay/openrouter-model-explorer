@@ -54,7 +54,7 @@ async def update_models(env):
     fetch_time = datetime.now(timezone.utc)
     html = generate_html(models, fetch_time)
     await env.MODELS_KV.put(KV_KEY, html)
-    flagship_html = generate_flagship_html()
+    flagship_html = generate_flagship_html(models, fetch_time)
     await env.MODELS_KV.put(KV_KEY_FLAGSHIP, flagship_html)
 
 
@@ -1441,26 +1441,81 @@ renderTable();
 
 # ── Flagship models comparison page ───────────────────────────────────────
 
-def generate_flagship_html():
-    updated = "2026-03-12"
-    models = [
-        {"provider":"OpenAI","logo":"🟢","model":"GPT-5.4","model_id":"openai/gpt-5.4","params":"~1.5T (MoE)","context":"256K","ctx_num":256000,"input_price":15.00,"output_price":60.00,"modality":"text+image+audio","reasoning":"✅","open_source":"❌","release":"2026-02","highlight":"最强综合性能，o3推理最优"},
-        {"provider":"Google","logo":"🔵","model":"Gemini 3.1 Ultra","model_id":"google/gemini-3.1-ultra","params":"未公开","context":"1M","ctx_num":1000000,"input_price":10.00,"output_price":30.00,"modality":"text+image+video+audio","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"超长上下文，全模态领先"},
-        {"provider":"Google","logo":"🔵","model":"Gemini 3.1 Flash","model_id":"google/gemini-3.1-flash","params":"未公开","context":"1M","ctx_num":1000000,"input_price":0.15,"output_price":0.60,"modality":"text+image+video+audio","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"极速低价，性价比最强"},
-        {"provider":"Anthropic","logo":"🟤","model":"Claude Opus 4","model_id":"anthropic/claude-opus-4-6","params":"未公开","context":"200K","ctx_num":200000,"input_price":15.00,"output_price":75.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2025-06","highlight":"代码/推理首选，安全性最佳"},
-        {"provider":"Anthropic","logo":"🟤","model":"Claude Sonnet 4.6","model_id":"anthropic/claude-sonnet-4-6","params":"未公开","context":"200K","ctx_num":200000,"input_price":3.00,"output_price":15.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"Opus 80%能力，1/5价格"},
-        {"provider":"xAI / Grok","logo":"⚫","model":"Grok 4","model_id":"x-ai/grok-4","params":"未公开","context":"128K","ctx_num":128000,"input_price":3.00,"output_price":15.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2026-01","highlight":"X/Twitter数据加持，实时搜索"},
-        {"provider":"MiniMax","logo":"🟣","model":"MiniMax M2.5","model_id":"minimax/minimax-m2.5","params":"230B (MoE, 10B激活)","context":"1M","ctx_num":1000000,"input_price":0.90,"output_price":2.70,"modality":"text+image+video+audio","reasoning":"✅","open_source":"✅","release":"2026-02","highlight":"国产全模态开源，SWE-Bench 80.2%"},
-        {"provider":"Moonshot / Kimi","logo":"🌙","model":"Kimi K2.5","model_id":"moonshot/kimi-k2.5","params":"未公开","context":"128K","ctx_num":128000,"input_price":1.00,"output_price":3.00,"modality":"text+image","reasoning":"✅","open_source":"❌","release":"2025-12","highlight":"长文档处理领先，中文最优"},
-        {"provider":"DeepSeek","logo":"🐋","model":"DeepSeek V3","model_id":"deepseek/deepseek-chat","params":"671B (MoE, 37B激活)","context":"128K","ctx_num":128000,"input_price":0.27,"output_price":1.10,"modality":"text","reasoning":"❌","open_source":"✅","release":"2024-12","highlight":"开源性价比之王，极低价格"},
-        {"provider":"DeepSeek","logo":"🐋","model":"DeepSeek R1","model_id":"deepseek/deepseek-r1","params":"671B (MoE)","context":"128K","ctx_num":128000,"input_price":0.55,"output_price":2.19,"modality":"text","reasoning":"✅","open_source":"✅","release":"2025-01","highlight":"开源推理模型标杆，媲美o1"},
-        {"provider":"Alibaba / Qwen","logo":"🟠","model":"Qwen3.5-72B","model_id":"qwen/qwen3.5-72b-instruct","params":"72B","context":"128K","ctx_num":128000,"input_price":0.40,"output_price":1.20,"modality":"text+image","reasoning":"✅","open_source":"✅","release":"2026-01","highlight":"开源旗舰，中英双语顶尖，thinking可控"},
-        {"provider":"Alibaba / Qwen","logo":"🟠","model":"Qwen3-235B-A22B","model_id":"qwen/qwen3-235b-a22b","params":"235B (MoE, 22B激活)","context":"128K","ctx_num":128000,"input_price":0.14,"output_price":0.60,"modality":"text","reasoning":"✅","open_source":"✅","release":"2025-12","highlight":"超大MoE开源，极低激活成本"},
-        {"provider":"智谱 / z.ai","logo":"🧩","model":"GLM-5","model_id":"zhipu/glm-5","params":"未公开","context":"128K","ctx_num":128000,"input_price":1.00,"output_price":4.00,"modality":"text+image","reasoning":"✅","open_source":"部分","release":"2026-01","highlight":"中文理解顶尖，代码能力强"},
-        {"provider":"NVIDIA","logo":"🟩","model":"Nemotron 3 Super","model_id":"nvidia/nemotron-3-super","params":"120B (MoE, 12B激活)","context":"1M","ctx_num":1000000,"input_price":0.50,"output_price":2.00,"modality":"text","reasoning":"✅","open_source":"✅","release":"2026-03","highlight":"混合Mamba-Transformer，完全开放"},
-    ]
+# Static metadata for flagship models (fields not available from API)
+FLAGSHIP_META = {
+    "openai/gpt-5.4": {"display_provider":"OpenAI","logo":"🟢","display_name":"GPT-5.4","params":"~1.5T (MoE)","open_source":"❌","release":"2026-02","highlight":"最强综合性能，o3推理最优"},
+    "google/gemini-3.1-ultra": {"display_provider":"Google","logo":"🔵","display_name":"Gemini 3.1 Ultra","params":"未公开","open_source":"❌","release":"2026-01","highlight":"超长上下文，全模态领先"},
+    "google/gemini-3.1-flash": {"display_provider":"Google","logo":"🔵","display_name":"Gemini 3.1 Flash","params":"未公开","open_source":"❌","release":"2026-01","highlight":"极速低价，性价比最强"},
+    "anthropic/claude-opus-4-6": {"display_provider":"Anthropic","logo":"🟤","display_name":"Claude Opus 4","params":"未公开","open_source":"❌","release":"2025-06","highlight":"代码/推理首选，安全性最佳"},
+    "anthropic/claude-sonnet-4-6": {"display_provider":"Anthropic","logo":"🟤","display_name":"Claude Sonnet 4.6","params":"未公开","open_source":"❌","release":"2026-01","highlight":"Opus 80%能力，1/5价格"},
+    "x-ai/grok-4": {"display_provider":"xAI / Grok","logo":"⚫","display_name":"Grok 4","params":"未公开","open_source":"❌","release":"2026-01","highlight":"X/Twitter数据加持，实时搜索"},
+    "minimax/minimax-m2.5": {"display_provider":"MiniMax","logo":"🟣","display_name":"MiniMax M2.5","params":"230B (MoE, 10B激活)","open_source":"✅","release":"2026-02","highlight":"国产全模态开源，SWE-Bench 80.2%"},
+    "moonshot/kimi-k2.5": {"display_provider":"Moonshot / Kimi","logo":"🌙","display_name":"Kimi K2.5","params":"未公开","open_source":"❌","release":"2025-12","highlight":"长文档处理领先，中文最优"},
+    "deepseek/deepseek-chat": {"display_provider":"DeepSeek","logo":"🐋","display_name":"DeepSeek V3","params":"671B (MoE, 37B激活)","open_source":"✅","release":"2024-12","highlight":"开源性价比之王，极低价格"},
+    "deepseek/deepseek-r1": {"display_provider":"DeepSeek","logo":"🐋","display_name":"DeepSeek R1","params":"671B (MoE)","open_source":"✅","release":"2025-01","highlight":"开源推理模型标杆，媲美o1"},
+    "qwen/qwen3.5-72b-instruct": {"display_provider":"Alibaba / Qwen","logo":"🟠","display_name":"Qwen3.5-72B","params":"72B","open_source":"✅","release":"2026-01","highlight":"开源旗舰，中英双语顶尖，thinking可控"},
+    "qwen/qwen3-235b-a22b": {"display_provider":"Alibaba / Qwen","logo":"🟠","display_name":"Qwen3-235B-A22B","params":"235B (MoE, 22B激活)","open_source":"✅","release":"2025-12","highlight":"超大MoE开源，极低激活成本"},
+    "zhipu/glm-5": {"display_provider":"智谱 / z.ai","logo":"🧩","display_name":"GLM-5","params":"未公开","open_source":"部分","release":"2026-01","highlight":"中文理解顶尖，代码能力强"},
+    "nvidia/nemotron-3-super": {"display_provider":"NVIDIA","logo":"🟩","display_name":"Nemotron 3 Super","params":"120B (MoE, 12B激活)","open_source":"✅","release":"2026-03","highlight":"混合Mamba-Transformer，完全开放"},
+}
 
-    models_json = json.dumps(models, ensure_ascii=False)
+
+def _format_context(ctx):
+    if ctx >= 1_000_000:
+        return f"{ctx // 1_000_000}M"
+    if ctx >= 1_000:
+        return f"{ctx // 1_000}K"
+    return str(ctx)
+
+
+def _build_flagship_models(models):
+    """Build flagship model list by merging API data with static metadata."""
+    models_by_id = {m["id"]: m for m in models}
+    flagship_ids = list(FLAGSHIP_META.keys())
+    result = []
+    for mid in flagship_ids:
+        meta = FLAGSHIP_META[mid]
+        api = models_by_id.get(mid)
+        if api:
+            # Real-time data from API
+            ctx_num = api["context_length"]
+            input_mods = api.get("input_modalities") or ["text"]
+            modality = "+".join(input_mods)
+            has_reasoning = "reasoning" in api.get("supported_params", [])
+            result.append({
+                "provider": meta["display_provider"],
+                "logo": meta["logo"],
+                "model": meta["display_name"],
+                "model_id": mid,
+                "params": meta["params"],
+                "context": _format_context(ctx_num),
+                "ctx_num": ctx_num,
+                "input_price": round(api["prompt_price_1m"], 2),
+                "output_price": round(api["completion_price_1m"], 2),
+                "modality": modality,
+                "reasoning": "✅" if has_reasoning else "❌",
+                "open_source": meta["open_source"],
+                "release": meta["release"],
+                "highlight": meta["highlight"],
+            })
+        else:
+            # Model not found in API — skip
+            pass
+    return result
+
+
+def generate_flagship_html(models, fetch_time):
+    updated = fetch_time.strftime("%Y-%m-%d")
+    flagship_models = _build_flagship_models(models)
+
+    # Compute summary stats
+    num_providers = len({m["provider"] for m in flagship_models})
+    num_models = len(flagship_models)
+    num_open = sum(1 for m in flagship_models if m["open_source"] == "✅")
+    max_ctx = _format_context(max((m["ctx_num"] for m in flagship_models), default=0))
+    min_input = min((m["input_price"] for m in flagship_models), default=0)
+
+    models_json = json.dumps(flagship_models, ensure_ascii=False)
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
@@ -1566,11 +1621,11 @@ footer a {{ color: var(--text-dim); text-decoration: none; }}
   </div>
 
   <div class="summary">
-    <div class="summary-card"><div class="label">收录厂商</div><div class="value">10</div></div>
-    <div class="summary-card"><div class="label">收录模型</div><div class="value amber">14</div></div>
-    <div class="summary-card"><div class="label">开源模型</div><div class="value green">6</div></div>
-    <div class="summary-card"><div class="label">最大上下文</div><div class="value">1M</div></div>
-    <div class="summary-card"><div class="label">最低输入价</div><div class="value green">$0.14/M</div></div>
+    <div class="summary-card"><div class="label">收录厂商</div><div class="value">{num_providers}</div></div>
+    <div class="summary-card"><div class="label">收录模型</div><div class="value amber">{num_models}</div></div>
+    <div class="summary-card"><div class="label">开源模型</div><div class="value green">{num_open}</div></div>
+    <div class="summary-card"><div class="label">最大上下文</div><div class="value">{max_ctx}</div></div>
+    <div class="summary-card"><div class="label">最低输入价</div><div class="value green">${min_input:.2f}/M</div></div>
   </div>
 
   <div class="controls">

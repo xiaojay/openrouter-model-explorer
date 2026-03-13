@@ -5,34 +5,200 @@ HTML page, and stores it in KV.  The fetch handler serves the cached HTML.
 """
 
 import json
+from html import escape as html_escape
 from datetime import datetime, timezone
 
 from js import Response, fetch, Headers
 
 
-KV_KEY = "models_html"
-KV_KEY_FLAGSHIP = "flagship_html"
+EXPLORER_KV_KEY = "models_html"
+FLASHSHIP_KV_KEY = "flashship_html"
+
+FLASHSHIP_TARGETS = [
+    {
+        "slug": "openai",
+        "company": "OpenAI",
+        "family_label": "GPT-5.4",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["openai/gpt-5.4"],
+                "fallback_prefixes": ["openai/gpt-5.4"],
+            },
+            {
+                "label": "Pro",
+                "preferred_ids": ["openai/gpt-5.4-pro"],
+                "fallback_prefixes": ["openai/gpt-5.4-pro"],
+            },
+        ],
+    },
+    {
+        "slug": "anthropic",
+        "company": "Anthropic",
+        "family_label": "Claude 4.6",
+        "variants": [
+            {
+                "label": "Sonnet",
+                "preferred_ids": ["anthropic/claude-sonnet-4.6"],
+                "fallback_prefixes": ["anthropic/claude-sonnet-4.6"],
+            },
+            {
+                "label": "Opus",
+                "preferred_ids": ["anthropic/claude-opus-4.6"],
+                "fallback_prefixes": ["anthropic/claude-opus-4.6"],
+            },
+        ],
+    },
+    {
+        "slug": "google",
+        "company": "Google",
+        "family_label": "Gemini 3.1 Pro",
+        "variants": [
+            {
+                "label": "Preview",
+                "preferred_ids": ["google/gemini-3.1-pro-preview"],
+                "fallback_prefixes": ["google/gemini-3.1-pro-preview"],
+            },
+        ],
+    },
+    {
+        "slug": "grok",
+        "company": "Grok",
+        "family_label": "Grok 4.20",
+        "variants": [
+            {
+                "label": "Beta",
+                "preferred_ids": ["x-ai/grok-4.20-beta"],
+                "fallback_prefixes": ["x-ai/grok-4.20-beta"],
+            },
+            {
+                "label": "Multi-Agent Beta",
+                "preferred_ids": ["x-ai/grok-4.20-multi-agent-beta"],
+                "fallback_prefixes": ["x-ai/grok-4.20-multi-agent-beta"],
+            },
+        ],
+    },
+    {
+        "slug": "deepseek",
+        "company": "DeepSeek",
+        "family_label": "DeepSeek V3.2",
+        "variants": [
+            {
+                "label": "Base",
+                "preferred_ids": ["deepseek/deepseek-v3.2"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2"],
+            },
+            {
+                "label": "Exp",
+                "preferred_ids": ["deepseek/deepseek-v3.2-exp"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2-exp"],
+            },
+            {
+                "label": "Speciale",
+                "preferred_ids": ["deepseek/deepseek-v3.2-speciale"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2-speciale"],
+            },
+        ],
+    },
+    {
+        "slug": "qwen",
+        "company": "Qwen",
+        "family_label": "Qwen 3.5",
+        "variants": [
+            {
+                "label": "397B A17B",
+                "preferred_ids": ["qwen/qwen3.5-397b-a17b"],
+                "fallback_prefixes": ["qwen/qwen3.5-397b-a17b"],
+            },
+            {
+                "label": "122B A10B",
+                "preferred_ids": ["qwen/qwen3.5-122b-a10b"],
+                "fallback_prefixes": ["qwen/qwen3.5-122b-a10b"],
+            },
+            {
+                "label": "35B A3B",
+                "preferred_ids": ["qwen/qwen3.5-35b-a3b"],
+                "fallback_prefixes": ["qwen/qwen3.5-35b-a3b"],
+            },
+            {
+                "label": "27B",
+                "preferred_ids": ["qwen/qwen3.5-27b"],
+                "fallback_prefixes": ["qwen/qwen3.5-27b"],
+            },
+            {
+                "label": "9B",
+                "preferred_ids": ["qwen/qwen3.5-9b"],
+                "fallback_prefixes": ["qwen/qwen3.5-9b"],
+            },
+            {
+                "label": "Plus",
+                "preferred_ids": ["qwen/qwen3.5-plus-02-15"],
+                "fallback_prefixes": ["qwen/qwen3.5-plus"],
+            },
+            {
+                "label": "Flash",
+                "preferred_ids": ["qwen/qwen3.5-flash-02-23"],
+                "fallback_prefixes": ["qwen/qwen3.5-flash"],
+            },
+        ],
+    },
+    {
+        "slug": "kimi",
+        "company": "Kimi",
+        "family_label": "Kimi K2.5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["moonshotai/kimi-k2.5"],
+                "fallback_prefixes": ["moonshotai/kimi-k2.5"],
+            },
+        ],
+    },
+    {
+        "slug": "minimax",
+        "company": "MiniMax",
+        "family_label": "MiniMax M2.5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["minimax/minimax-m2.5"],
+                "fallback_prefixes": ["minimax/minimax-m2.5"],
+            },
+        ],
+    },
+    {
+        "slug": "z-ai",
+        "company": "Z.ai",
+        "family_label": "GLM-5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["z-ai/glm-5"],
+                "fallback_prefixes": ["z-ai/glm-5"],
+            },
+        ],
+    },
+]
 
 
 # ── Fetch handler ──────────────────────────────────────────────────────────
 
 async def on_fetch(request, env):
     url = request.url
-    if "/refresh" in url:
+    path = url.split("?", 1)[0].rstrip("/")
+
+    if path.endswith("/refresh"):
         await update_models(env)
-        return Response.new("Refreshed!", headers=Headers.new({"content-type": "text/plain"}.items()))
+        return Response.new(
+            "Refreshed explorer and flashship pages!",
+            headers=Headers.new({"content-type": "text/plain"}.items()),
+        )
 
-    if "/flagship" in url:
-        html = await env.MODELS_KV.get(KV_KEY_FLAGSHIP)
-        if not html:
-            await update_models(env)
-            html = await env.MODELS_KV.get(KV_KEY_FLAGSHIP)
-        return Response.new(html or "No data yet.", headers=Headers.new({"content-type": "text/html;charset=UTF-8"}.items()))
-
-    html = await env.MODELS_KV.get(KV_KEY)
+    kv_key = FLASHSHIP_KV_KEY if path.endswith("/flashship") else EXPLORER_KV_KEY
+    html = await env.MODELS_KV.get(kv_key)
     if not html:
         await update_models(env)
-        html = await env.MODELS_KV.get(KV_KEY)
+        html = await env.MODELS_KV.get(kv_key)
 
     return Response.new(
         html or "No data yet.",
@@ -52,10 +218,10 @@ async def update_models(env):
     raw_models = await fetch_models()
     models = process_models(raw_models)
     fetch_time = datetime.now(timezone.utc)
-    html = generate_html(models, fetch_time)
-    await env.MODELS_KV.put(KV_KEY, html)
-    flagship_html = generate_flagship_html(models, fetch_time)
-    await env.MODELS_KV.put(KV_KEY_FLAGSHIP, flagship_html)
+    explorer_html = generate_html(models, fetch_time, flashship_url="/flashship")
+    flashship_html = generate_flashship_html(models, fetch_time)
+    await env.MODELS_KV.put(EXPLORER_KV_KEY, explorer_html)
+    await env.MODELS_KV.put(FLASHSHIP_KV_KEY, flashship_html)
 
 
 async def fetch_models():
@@ -109,7 +275,7 @@ def process_models(raw_models):
 
 # ── HTML generation ────────────────────────────────────────────────────────
 
-def generate_html(models, fetch_time):
+def generate_html(models, fetch_time, flashship_url="/flashship"):
     providers = sorted(set(m["provider"] for m in models))
     all_input_mods = sorted(set(mod for m in models for mod in m["input_modalities"]))
 
@@ -293,6 +459,22 @@ body::after {{
 .toggle-pill:hover {{
   border-color: var(--accent-cyan);
   color: var(--text-secondary);
+}}
+
+.flashship-link {{
+  border-color: var(--accent-cyan);
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #67e8f9 100%);
+  color: #06202a;
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.22);
+}}
+
+.flashship-link:hover {{
+  color: #04151c;
+  transform: translateY(-1px);
+}}
+
+[data-theme="light"] .flashship-link {{
+  color: #ffffff;
 }}
 
 .toggle-pill svg {{
@@ -878,6 +1060,7 @@ tbody tr.row-selected:hover {{
     <div class="header-right">
       <a href="/flagship" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:20px;background:linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15));border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:13px;font-weight:700;text-decoration:none;transition:all .25s;white-space:nowrap;" onmouseover="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.25),rgba(167,139,250,0.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15))'">🏆 旗舰模型对比</a>
       <div class="toggle-group">
+        <a class="toggle-pill flashship-link" href="{html_escape(flashship_url)}">Flashship ↗</a>
         <button class="toggle-pill theme-toggle" id="themeToggle" title="Toggle light/dark">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
           <span data-i18n="theme">Theme</span>
@@ -1439,329 +1622,796 @@ renderTable();
 </html>"""
     return html
 
-# ── Flagship models comparison page ───────────────────────────────────────
 
-# Static metadata for flagship models (fields not available from API)
-FLAGSHIP_META = {
-    "openai/gpt-5.4": {"display_provider":"OpenAI","logo":"🟢","display_name":"GPT-5.4","params":"~1.5T (MoE)","open_source":"❌","release":"2026-02","highlight":"最强综合性能，o3推理最优"},
-    "google/gemini-3.1-ultra": {"display_provider":"Google","logo":"🔵","display_name":"Gemini 3.1 Ultra","params":"未公开","open_source":"❌","release":"2026-01","highlight":"超长上下文，全模态领先"},
-    "google/gemini-3.1-flash": {"display_provider":"Google","logo":"🔵","display_name":"Gemini 3.1 Flash","params":"未公开","open_source":"❌","release":"2026-01","highlight":"极速低价，性价比最强"},
-    "anthropic/claude-opus-4-6": {"display_provider":"Anthropic","logo":"🟤","display_name":"Claude Opus 4","params":"未公开","open_source":"❌","release":"2025-06","highlight":"代码/推理首选，安全性最佳"},
-    "anthropic/claude-sonnet-4-6": {"display_provider":"Anthropic","logo":"🟤","display_name":"Claude Sonnet 4.6","params":"未公开","open_source":"❌","release":"2026-01","highlight":"Opus 80%能力，1/5价格"},
-    "x-ai/grok-4": {"display_provider":"xAI / Grok","logo":"⚫","display_name":"Grok 4","params":"未公开","open_source":"❌","release":"2026-01","highlight":"X/Twitter数据加持，实时搜索"},
-    "minimax/minimax-m2.5": {"display_provider":"MiniMax","logo":"🟣","display_name":"MiniMax M2.5","params":"230B (MoE, 10B激活)","open_source":"✅","release":"2026-02","highlight":"国产全模态开源，SWE-Bench 80.2%"},
-    "moonshot/kimi-k2.5": {"display_provider":"Moonshot / Kimi","logo":"🌙","display_name":"Kimi K2.5","params":"未公开","open_source":"❌","release":"2025-12","highlight":"长文档处理领先，中文最优"},
-    "deepseek/deepseek-chat": {"display_provider":"DeepSeek","logo":"🐋","display_name":"DeepSeek V3","params":"671B (MoE, 37B激活)","open_source":"✅","release":"2024-12","highlight":"开源性价比之王，极低价格"},
-    "deepseek/deepseek-r1": {"display_provider":"DeepSeek","logo":"🐋","display_name":"DeepSeek R1","params":"671B (MoE)","open_source":"✅","release":"2025-01","highlight":"开源推理模型标杆，媲美o1"},
-    "qwen/qwen3.5-72b-instruct": {"display_provider":"Alibaba / Qwen","logo":"🟠","display_name":"Qwen3.5-72B","params":"72B","open_source":"✅","release":"2026-01","highlight":"开源旗舰，中英双语顶尖，thinking可控"},
-    "qwen/qwen3-235b-a22b": {"display_provider":"Alibaba / Qwen","logo":"🟠","display_name":"Qwen3-235B-A22B","params":"235B (MoE, 22B激活)","open_source":"✅","release":"2025-12","highlight":"超大MoE开源，极低激活成本"},
-    "zhipu/glm-5": {"display_provider":"智谱 / z.ai","logo":"🧩","display_name":"GLM-5","params":"未公开","open_source":"部分","release":"2026-01","highlight":"中文理解顶尖，代码能力强"},
-    "nvidia/nemotron-3-super": {"display_provider":"NVIDIA","logo":"🟩","display_name":"Nemotron 3 Super","params":"120B (MoE, 12B激活)","open_source":"✅","release":"2026-03","highlight":"混合Mamba-Transformer，完全开放"},
-}
+def select_flashship_variant(models, variant):
+    by_id = {m["id"]: m for m in models}
+
+    for preferred_id in variant["preferred_ids"]:
+        chosen = by_id.get(preferred_id)
+        if chosen and not chosen["id"].endswith(":free"):
+            return chosen
+
+    candidates = [
+        m for m in models
+        if any(m["id"].startswith(prefix) for prefix in variant["fallback_prefixes"])
+        and not m["id"].endswith(":free")
+    ]
+    candidates.sort(key=lambda m: (m["id"], m["context_length"], m["max_completion"]), reverse=True)
+    return candidates[0] if candidates else None
 
 
-def _format_context(ctx):
-    if ctx >= 1_000_000:
-        return f"{ctx // 1_000_000}M"
-    if ctx >= 1_000:
-        return f"{ctx // 1_000}K"
-    return str(ctx)
+def pick_flashship_models(models):
+    selected = []
+
+    for target in FLASHSHIP_TARGETS:
+        for variant in target["variants"]:
+            chosen = select_flashship_variant(models, variant)
+            row = {
+                "slug": target["slug"],
+                "company": target["company"],
+                "family_label": target["family_label"],
+                "variant_label": variant["label"],
+                "available": bool(chosen),
+            }
+            if chosen:
+                row.update(chosen)
+            selected.append(row)
+
+    return selected
 
 
-def _build_flagship_models(models):
-    """Build flagship model list by merging API data with static metadata."""
-    models_by_id = {m["id"]: m for m in models}
-    flagship_ids = list(FLAGSHIP_META.keys())
-    result = []
-    for mid in flagship_ids:
-        meta = FLAGSHIP_META[mid]
-        api = models_by_id.get(mid)
-        if api:
-            # Real-time data from API
-            ctx_num = api["context_length"]
-            input_mods = api.get("input_modalities") or ["text"]
-            modality = "+".join(input_mods)
-            has_reasoning = "reasoning" in api.get("supported_params", [])
-            result.append({
-                "provider": meta["display_provider"],
-                "logo": meta["logo"],
-                "model": meta["display_name"],
-                "model_id": mid,
-                "params": meta["params"],
-                "context": _format_context(ctx_num),
-                "ctx_num": ctx_num,
-                "input_price": round(api["prompt_price_1m"], 2),
-                "output_price": round(api["completion_price_1m"], 2),
-                "modality": modality,
-                "reasoning": "✅" if has_reasoning else "❌",
-                "open_source": meta["open_source"],
-                "release": meta["release"],
-                "highlight": meta["highlight"],
-            })
-        else:
-            # Model not found in API — skip
-            pass
-    return result
+def format_context(value):
+    if not value:
+        return "—"
+    if value >= 1_000_000:
+        formatted = f"{value / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted}M"
+    if value >= 1000:
+        formatted = f"{value / 1000:.0f}" if value % 1000 == 0 else f"{value / 1000:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted}K"
+    return str(value)
 
 
-def generate_flagship_html(models, fetch_time):
-    updated = fetch_time.strftime("%Y-%m-%d")
-    flagship_models = _build_flagship_models(models)
+def format_price_html(value):
+    if value == 0:
+        return '<span class="price-free">FREE</span>'
+    if value < 1:
+        return f'<span class="price-low">${value:.4f}</span>'
+    if value < 10:
+        return f'<span class="price-mid">${value:.3f}</span>'
+    return f'<span class="price-high">${value:.2f}</span>'
 
-    # Compute summary stats
-    num_providers = len({m["provider"] for m in flagship_models})
-    num_models = len(flagship_models)
-    num_open = sum(1 for m in flagship_models if m["open_source"] == "✅")
-    max_ctx = _format_context(max((m["ctx_num"] for m in flagship_models), default=0))
-    min_input = min((m["input_price"] for m in flagship_models), default=0)
 
-    models_json = json.dumps(flagship_models, ensure_ascii=False)
+def format_price_text(value):
+    if value == 0:
+        return "FREE"
+    if value < 1:
+        return f"${value:.4f}"
+    if value < 10:
+        return f"${value:.3f}"
+    return f"${value:.2f}"
 
-    return f"""<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+
+def format_modalities_html(modalities):
+    if not modalities:
+        return "—"
+
+    labels = {
+        "text": "TEXT",
+        "image": "IMAGE",
+        "audio": "AUDIO",
+        "video": "VIDEO",
+        "file": "FILE",
+    }
+    return "".join(
+        f'<span class="modality-badge mod-{html_escape(mod)}">{html_escape(labels.get(mod, mod.upper()))}</span>'
+        for mod in modalities
+    )
+
+
+def format_params_html(params):
+    if not params:
+        return '<span class="muted">—</span>'
+
+    shown = params[:4]
+    html = "".join(f'<span class="param-badge">{html_escape(param)}</span>' for param in shown)
+    extra = len(params) - len(shown)
+    if extra > 0:
+        html += f'<span class="param-badge">+{extra}</span>'
+    return html
+
+
+def generate_flashship_html(models, fetch_time, explorer_url="/", flashship_url="/flashship"):
+    flashship_models = pick_flashship_models(models)
+    available_models = [m for m in flashship_models if m["available"]]
+    tracked_variants = len(flashship_models)
+    available_count = len(available_models)
+    lowest_input = min((m["prompt_price_1m"] for m in available_models), default=0)
+    max_ctx = max((m["context_length"] for m in available_models), default=0)
+    max_output = max((m["max_completion"] for m in available_models), default=0)
+
+    fetch_str = fetch_time.strftime("%Y-%m-%d %H:%M:%S UTC")
+    subtitle = "OpenAI / Anthropic / Google / Grok / DeepSeek / Qwen / Kimi / MiniMax / Z.ai"
+
+    paid_inputs = [m["prompt_price_1m"] for m in available_models if m["prompt_price_1m"] > 0]
+    paid_outputs = [m["completion_price_1m"] for m in available_models if m["completion_price_1m"] > 0]
+    min_input = min(paid_inputs) if paid_inputs else 0
+    min_output = min(paid_outputs) if paid_outputs else 0
+
+    rows = []
+    for row in flashship_models:
+        if not row["available"]:
+            rows.append(
+                f"""<tr data-company="{html_escape(row["company"])}" data-family="{html_escape(row["family_label"])}" data-variant="{html_escape(row["variant_label"])}" data-model="Unavailable" data-input="" data-output="" data-reasoning="" data-context="" data-max-output="" data-modalities="" data-params="0">
+  <td class="cell-provider">{html_escape(row["company"])}</td>
+  <td class="cell-family">{html_escape(row["family_label"])}</td>
+  <td class="cell-family">{html_escape(row["variant_label"])}</td>
+  <td class="cell-model"><div class="model-name">Unavailable</div></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-ctx"><span class="muted">—</span></td>
+  <td class="cell-ctx"><span class="muted">—</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="muted">—</span></td>
+</tr>"""
+            )
+            continue
+
+        input_html = format_price_html(row["prompt_price_1m"])
+        if row["prompt_price_1m"] == 0 or row["prompt_price_1m"] == min_input:
+            input_html = f'<span class="cmp-best">{input_html}</span>'
+
+        output_html = format_price_html(row["completion_price_1m"])
+        if row["completion_price_1m"] == 0 or row["completion_price_1m"] == min_output:
+            output_html = f'<span class="cmp-best">{output_html}</span>'
+
+        context_html = html_escape(format_context(row["context_length"]))
+        if row["context_length"] == max_ctx:
+            context_html = f'<span class="cmp-best">{context_html}</span>'
+
+        max_output_html = html_escape(format_context(row["max_completion"]))
+        if row["max_completion"] == max_output:
+            max_output_html = f'<span class="cmp-best">{max_output_html}</span>'
+
+        modality_sort = " ".join(row["input_modalities"] + row["output_modalities"])
+        params_sort = str(len(row["supported_params"]))
+        rows.append(
+            f"""<tr data-company="{html_escape(row["company"])}" data-family="{html_escape(row["family_label"])}" data-variant="{html_escape(row["variant_label"])}" data-model="{html_escape(row["name"] + ' ' + row["id"])}" data-input="{row["prompt_price_1m"]}" data-output="{row["completion_price_1m"]}" data-reasoning="{row["reasoning_price_1m"]}" data-context="{row["context_length"]}" data-max-output="{row["max_completion"]}" data-modalities="{html_escape(modality_sort)}" data-params="{params_sort}">
+  <td class="cell-provider">{html_escape(row["company"])}</td>
+  <td class="cell-family">{html_escape(row["family_label"])}</td>
+  <td class="cell-family">{html_escape(row["variant_label"])}</td>
+  <td class="cell-model">
+    <div class="model-name">{html_escape(row["name"])}</div>
+    <div class="model-id">{html_escape(row["id"])}</div>
+    <div class="model-desc">{html_escape(row["description"])}</div>
+  </td>
+  <td class="cell-price">{input_html}</td>
+  <td class="cell-price">{output_html}</td>
+  <td class="cell-price">{format_price_html(row["reasoning_price_1m"])}</td>
+  <td class="cell-ctx">{context_html}</td>
+  <td class="cell-ctx">{max_output_html}</td>
+  <td>
+    <div class="modality-stack">
+      <div class="modality-row"><span class="muted">IN</span>{format_modalities_html(row["input_modalities"])}</div>
+      <div class="modality-row"><span class="muted">OUT</span>{format_modalities_html(row["output_modalities"])}</div>
+    </div>
+  </td>
+  <td><div class="param-badges">{format_params_html(row["supported_params"])}</div></td>
+</tr>"""
+        )
+
+    rows_html = "\n".join(rows)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>旗舰模型对比 | OpenRouter Model Explorer</title>
+<title>Flashship — {fetch_time.strftime('%Y-%m-%d %H:%M')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
 [data-theme="dark"] {{
-  --bg-deep: #0a0e17; --bg-surface: #111825; --bg-card: #1a2235;
-  --bg-hover: #212d45; --border: #2a3550; --border-bright: #3d4f6f;
-  --text-primary: #e2e8f0; --text-secondary: #8892a8; --text-dim: #5a6578;
-  --accent-cyan: #22d3ee; --accent-cyan-dim: rgba(34,211,238,0.12);
-  --accent-amber: #fbbf24; --accent-green: #34d399; --accent-rose: #fb7185;
-  --accent-violet: #a78bfa; --scrollbar-track: #0a0e17;
+  --bg-deep: #0a0e17;
+  --bg-surface: #111825;
+  --bg-card: #1a2235;
+  --bg-hover: #212d45;
+  --border: #2a3550;
+  --border-bright: #3d4f6f;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8892a8;
+  --text-dim: #5a6578;
+  --accent-cyan: #22d3ee;
+  --accent-cyan-dim: rgba(34,211,238,0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-dim: rgba(251,191,36,0.10);
+  --accent-green: #34d399;
+  --accent-green-dim: rgba(52,211,153,0.10);
+  --accent-rose: #fb7185;
+  --accent-rose-dim: rgba(251,113,133,0.10);
+  --accent-violet: #a78bfa;
+  --accent-violet-dim: rgba(167,139,250,0.10);
+  --grain-opacity: 0.03;
+  --glow-opacity: 0.06;
+  --scrollbar-track: #0a0e17;
 }}
+
 [data-theme="light"] {{
-  --bg-deep: #f4f6f9; --bg-surface: #eaecf1; --bg-card: #ffffff;
-  --bg-hover: #f0f2f7; --border: #d5d9e2; --border-bright: #bfc5d2;
-  --text-primary: #1a1d26; --text-secondary: #555d6e; --text-dim: #8891a0;
-  --accent-cyan: #0891b2; --accent-cyan-dim: rgba(8,145,178,0.08);
-  --accent-amber: #d97706; --accent-green: #059669; --accent-rose: #e11d48;
-  --accent-violet: #7c3aed; --scrollbar-track: #f4f6f9;
+  --bg-deep: #f4f6f9;
+  --bg-surface: #eaecf1;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f2f7;
+  --border: #d5d9e2;
+  --border-bright: #bfc5d2;
+  --text-primary: #1a1d26;
+  --text-secondary: #555d6e;
+  --text-dim: #8891a0;
+  --accent-cyan: #0891b2;
+  --accent-cyan-dim: rgba(8,145,178,0.08);
+  --accent-amber: #d97706;
+  --accent-amber-dim: rgba(217,119,6,0.07);
+  --accent-green: #059669;
+  --accent-green-dim: rgba(5,150,105,0.07);
+  --accent-rose: #e11d48;
+  --accent-rose-dim: rgba(225,29,72,0.06);
+  --accent-violet: #7c3aed;
+  --accent-violet-dim: rgba(124,58,237,0.07);
+  --grain-opacity: 0.015;
+  --glow-opacity: 0.03;
+  --scrollbar-track: #f4f6f9;
 }}
-:root {{ --font-mono: 'DM Mono', monospace; --font-sans: 'Instrument Sans', system-ui, sans-serif; --radius: 8px; }}
-body {{ font-family: var(--font-sans); background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }}
-.container {{ max-width: 1700px; margin: 0 auto; padding: 32px 24px; }}
-.header {{ display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }}
-.header h1 {{ font-size: 26px; font-weight: 700; background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
-.header-right {{ display: flex; gap: 12px; align-items: center; }}
-.nav-link {{ color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; transition: all .2s; }}
-.nav-link:hover {{ color: var(--accent-cyan); border-color: var(--accent-cyan); }}
-.meta {{ font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }}
-.toggle-pill {{ display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .25s; }}
-.toggle-pill:hover {{ border-color: var(--accent-cyan); color: var(--text-secondary); }}
-.summary {{ display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }}
-.summary-card {{ background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; flex: 1; min-width: 140px; }}
-.summary-card .label {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 4px; }}
-.summary-card .value {{ font-family: var(--font-mono); font-size: 20px; font-weight: 500; color: var(--accent-cyan); }}
-.summary-card .value.green {{ color: var(--accent-green); }}
-.summary-card .value.amber {{ color: var(--accent-amber); }}
-.controls {{ display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }}
-.search-box {{ position: relative; flex: 1; min-width: 220px; }}
-.search-box input {{ width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px 9px 38px; font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); outline: none; transition: border-color .2s; }}
-.search-box input:focus {{ border-color: var(--accent-cyan); }}
-.search-icon {{ position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; }}
-select {{ background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; font-size: 13px; color: var(--text-primary); outline: none; cursor: pointer; }}
-.table-wrap {{ border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }}
-.table-scroll {{ overflow-x: auto; }}
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-thead {{ position: sticky; top: 0; z-index: 10; }}
-thead th {{ background: var(--bg-card); border-bottom: 2px solid var(--border-bright); padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; transition: color .2s; }}
-thead th:hover {{ color: var(--accent-cyan); }}
-thead th.sorted {{ color: var(--accent-cyan); }}
-thead th .sort-arrow {{ display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }}
-thead th.sorted .sort-arrow {{ opacity: 1; }}
-tbody tr {{ border-bottom: 1px solid var(--border); transition: background .15s; }}
-tbody tr:hover {{ background: var(--bg-hover); }}
-tbody td {{ padding: 10px 14px; vertical-align: middle; }}
-.logo {{ margin-right: 6px; }}
-.cell-provider {{ font-weight: 600; font-size: 12px; white-space: nowrap; }}
-.cell-model {{ min-width: 180px; }}
-.model-name {{ font-weight: 600; color: var(--text-primary); }}
-.model-id {{ font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }}
-.cell-ctx {{ font-family: var(--font-mono); color: var(--accent-amber); font-weight: 500; }}
-.cell-price {{ font-family: var(--font-mono); }}
+
+:root {{
+  --radius: 8px;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+  --font-sans: 'Instrument Sans', system-ui, sans-serif;
+}}
+
+html {{ scroll-behavior: smooth; }}
+
+body {{
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  transition: background 0.3s, color 0.3s;
+}}
+
+body::before {{
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}}
+
+body::after {{
+  content: '';
+  position: fixed;
+  top: -200px;
+  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(34,211,238,var(--glow-opacity)) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}}
+
+.container {{
+  position: relative;
+  z-index: 1;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}}
+
+.header {{
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  animation: fadeDown 0.6s ease-out;
+  gap: 16px;
+}}
+
+.header-left h1 {{
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}}
+
+.subtitle {{
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}}
+
+.header-right {{
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}}
+
+.header .meta {{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+  line-height: 1.8;
+}}
+
+.header .meta span {{
+  color: var(--accent-cyan);
+}}
+
+.toggle-group {{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}}
+
+.toggle-pill {{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s;
+  user-select: none;
+  text-decoration: none;
+}}
+
+.toggle-pill:hover {{
+  border-color: var(--accent-cyan);
+  color: var(--text-secondary);
+}}
+
+.toggle-pill.is-active {{
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+}}
+
+.toggle-pill svg {{
+  width: 14px;
+  height: 14px;
+  transition: transform 0.3s;
+}}
+
+[data-theme="light"] .toggle-pill.theme-toggle svg {{ transform: rotate(180deg); }}
+
+.stats-bar {{
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  animation: fadeDown 0.6s ease-out 0.1s both;
+}}
+
+.stat-card {{
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  flex: 1;
+  min-width: 180px;
+}}
+
+.stat-card .label {{
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}}
+
+.stat-card .value {{
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accent-cyan);
+}}
+
+.stat-card .value.green {{ color: var(--accent-green); }}
+.stat-card .value.amber {{ color: var(--accent-amber); }}
+.stat-card .value.rose {{ color: var(--accent-rose); }}
+
+.info-card {{
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  color: var(--text-secondary);
+  animation: fadeDown 0.6s ease-out 0.15s both;
+}}
+
+.info-card strong {{
+  color: var(--text-primary);
+}}
+
+.table-wrap {{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeUp 0.6s ease-out 0.2s both;
+}}
+
+.table-scroll {{
+  overflow-x: auto;
+}}
+
+table {{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}}
+
+thead th {{
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-bright);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}}
+
+thead th.sortable {{
+  cursor: pointer;
+  user-select: none;
+}}
+
+thead th.sortable:hover {{
+  color: var(--accent-cyan);
+}}
+
+thead th.sorted {{
+  color: var(--accent-cyan);
+}}
+
+.sort-arrow {{
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.4;
+  font-size: 10px;
+}}
+
+thead th.sorted .sort-arrow {{
+  opacity: 1;
+}}
+
+tbody tr {{
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}}
+
+tbody tr:hover {{
+  background: var(--bg-hover);
+}}
+
+tbody td {{
+  padding: 12px 16px;
+  white-space: nowrap;
+  vertical-align: top;
+}}
+
+.cell-provider {{
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}}
+
+.cell-family {{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}}
+
+.cell-model {{
+  min-width: 360px;
+  max-width: 420px;
+  white-space: normal;
+}}
+
+.model-name {{
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}}
+
+.model-id {{
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  word-break: break-all;
+}}
+
+.model-desc {{
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}}
+
+.cell-price, .cell-ctx {{
+  font-family: var(--font-mono);
+  font-size: 13px;
+}}
+
 .price-free {{ color: var(--accent-green); font-weight: 500; }}
 .price-low {{ color: var(--accent-green); }}
 .price-mid {{ color: var(--accent-amber); }}
 .price-high {{ color: var(--accent-rose); }}
-.cell-center {{ text-align: center; font-size: 15px; }}
-.cell-release {{ font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; }}
-.cell-highlight {{ font-size: 12px; color: var(--text-secondary); min-width: 180px; }}
-.empty {{ text-align: center; padding: 50px; color: var(--text-dim); }}
-.note {{ margin-top: 16px; font-size: 12px; color: var(--text-dim); line-height: 1.8; }}
-.note a {{ color: var(--accent-cyan); text-decoration: none; }}
-footer {{ text-align: center; padding: 28px 0 20px; color: var(--text-dim); font-size: 13px; }}
-footer a {{ color: var(--text-dim); text-decoration: none; }}
+
+.modality-badge {{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 1px 2px 1px 0;
+}}
+
+.mod-text {{ background: var(--accent-cyan-dim); color: var(--accent-cyan); }}
+.mod-image {{ background: var(--accent-violet-dim); color: var(--accent-violet); }}
+.mod-audio {{ background: var(--accent-amber-dim); color: var(--accent-amber); }}
+.mod-video {{ background: var(--accent-rose-dim); color: var(--accent-rose); }}
+.mod-file {{ background: var(--accent-green-dim); color: var(--accent-green); }}
+
+.modality-stack {{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}}
+
+.modality-row {{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}}
+
+.param-badges {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 240px;
+}}
+
+.param-badge {{
+  font-size: 9px;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}}
+
+.cmp-best {{
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-green-dim);
+}}
+
+.muted {{
+  color: var(--text-dim);
+}}
+
+.footer {{
+  margin-top: 20px;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: right;
+}}
+
+@keyframes fadeDown {{
+  from {{ opacity: 0; transform: translateY(-12px); }}
+  to {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@keyframes fadeUp {{
+  from {{ opacity: 0; transform: translateY(12px); }}
+  to {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@media (max-width: 768px) {{
+  .container {{ padding: 24px 16px; }}
+  .header {{ flex-direction: column; align-items: flex-start; }}
+  .header-right {{ width: 100%; flex-direction: column; align-items: flex-start; }}
+  .header .meta {{ text-align: left; }}
+  .toggle-group {{ justify-content: flex-start; }}
+  .stat-card {{ min-width: 140px; }}
+  .cell-model {{ min-width: 280px; }}
+}}
+
 ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
 ::-webkit-scrollbar-track {{ background: var(--scrollbar-track); }}
 ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
-@media (max-width: 768px) {{
-  .header {{ flex-direction: column; align-items: flex-start; }}
-  .summary {{ gap: 8px; }}
-  .summary-card {{ min-width: 100px; padding: 10px 14px; }}
-  .summary-card .value {{ font-size: 16px; }}
-}}
+::-webkit-scrollbar-thumb:hover {{ background: var(--border-bright); }}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <div>
-      <h1>🏆 旗舰模型对比</h1>
-      <div class="meta" style="margin-top:6px;">各厂商最新一代大语言模型 · 更新于 {updated}</div>
-    </div>
-    <div class="header-right">
-      <a href="/" class="nav-link">← 全量模型浏览</a>
-      <button class="toggle-pill" id="themeToggle">☀️ 切换主题</button>
-    </div>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <h1>Flashship Frontier Table</h1>
+        <div class="subtitle">{html_escape(subtitle)}</div>
+      </div>
+      <div class="header-right">
+        <div class="meta">
+          Source <span>OpenRouter</span><br>
+          Updated <span>{fetch_str}</span>
+        </div>
+        <div class="toggle-group">
+          <a class="toggle-pill" href="{html_escape(explorer_url)}">Explorer</a>
+          <a class="toggle-pill is-active" href="{html_escape(flashship_url)}">Flashship</a>
+          <button class="toggle-pill theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 3v2.5M12 18.5V21M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M3 12h2.5M18.5 12H21M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/>
+            </svg>
+            Theme
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats-bar">
+      <div class="stat-card">
+        <div class="label">Tracked Companies</div>
+        <div class="value">{len(FLASHSHIP_TARGETS)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Tracked Variants</div>
+        <div class="value green">{tracked_variants}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Available Variants</div>
+        <div class="value green">{available_count}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Lowest Input</div>
+        <div class="value amber">{html_escape(format_price_text(lowest_input))}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Largest Context</div>
+        <div class="value rose">{format_context(max_ctx)}</div>
+      </div>
+    </section>
+
+    <section class="info-card">
+      <strong>Selection rule:</strong> each company is pinned to its current latest model family, and this page includes all maintained core variants inside that same family, including lighter and fuller tiers when OpenRouter exposes them. All prices, context, max output and supported parameters come directly from the matched OpenRouter payload. Cheapest input/output and largest context/max output are highlighted.
+    </section>
+
+    <section class="table-wrap">
+      <div class="table-scroll">
+        <table id="flashshipTable">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="company" data-sort-type="text">Company <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="family" data-sort-type="text">Family <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="variant" data-sort-type="text">Variant <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="model" data-sort-type="text">Model <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="input" data-sort-type="number">Input $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="output" data-sort-type="number">Output $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="reasoning" data-sort-type="number">Reasoning $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="context" data-sort-type="number">Context <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="max-output" data-sort-type="number">Max Output <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="modalities" data-sort-type="text">Modalities <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="params" data-sort-type="number">Supported Params <span class="sort-arrow">↑</span></th>
+            </tr>
+          </thead>
+          <tbody id="flashshipTableBody">
+            {rows_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="footer">Max output leader: {html_escape(format_context(max_output))}</div>
   </div>
 
-  <div class="summary">
-    <div class="summary-card"><div class="label">收录厂商</div><div class="value">{num_providers}</div></div>
-    <div class="summary-card"><div class="label">收录模型</div><div class="value amber">{num_models}</div></div>
-    <div class="summary-card"><div class="label">开源模型</div><div class="value green">{num_open}</div></div>
-    <div class="summary-card"><div class="label">最大上下文</div><div class="value">{max_ctx}</div></div>
-    <div class="summary-card"><div class="label">最低输入价</div><div class="value green">${min_input:.2f}/M</div></div>
-  </div>
+  <script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const tableBody = document.getElementById('flashshipTableBody');
+    const sortHeaders = Array.from(document.querySelectorAll('#flashshipTable thead th.sortable'));
+    const storedTheme = localStorage.getItem('theme') || 'dark';
+    root.setAttribute('data-theme', storedTheme);
+    toggle.addEventListener('click', () => {{
+      const nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', nextTheme);
+      localStorage.setItem('theme', nextTheme);
+    }});
 
-  <div class="controls">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="searchInput" placeholder="搜索模型、厂商...">
-    </div>
-    <select id="filterOS"><option value="">全部</option><option value="yes">开源 ✅</option><option value="no">闭源 ❌</option></select>
-    <select id="filterReasoning"><option value="">推理：全部</option><option value="yes">支持推理 ✅</option><option value="no">不支持 ❌</option></select>
-  </div>
+    let sortKey = null;
+    let sortAsc = true;
 
-  <div class="table-wrap">
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th data-sort="provider">厂商 <span class="sort-arrow">↕</span></th>
-            <th data-sort="model">模型 <span class="sort-arrow">↕</span></th>
-            <th data-sort="params">参数规模 <span class="sort-arrow">↕</span></th>
-            <th data-sort="ctx_num">上下文 <span class="sort-arrow">↕</span></th>
-            <th data-sort="input_price">输入价 $/1M <span class="sort-arrow">↕</span></th>
-            <th data-sort="output_price">输出价 $/1M <span class="sort-arrow">↕</span></th>
-            <th data-sort="modality">模态 <span class="sort-arrow">↕</span></th>
-            <th data-sort="reasoning">推理 <span class="sort-arrow">↕</span></th>
-            <th data-sort="open_source">开源 <span class="sort-arrow">↕</span></th>
-            <th data-sort="release">发布 <span class="sort-arrow">↕</span></th>
-            <th>亮点</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-    </div>
-    <div class="empty" id="empty" style="display:none">没有匹配的模型</div>
-  </div>
+    function compareValues(a, b, type) {{
+      const aMissing = a === '';
+      const bMissing = b === '';
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
 
-  <div class="note">
-    💡 价格为参考报价（OpenRouter / 官网定价），可能随时更新。开源模型可自部署，按算力成本计。<br>
-    📅 数据截至 {updated}，各厂商实际最新价格以官网为准。点击表头可排序。<br>
-    🔗 全量模型浏览（实时抓取 OpenRouter 所有模型）→ <a href="/">models.jaylab.io</a>
-  </div>
-</div>
-
-<footer><a href="https://github.com/xiaojay/openrouter-model-explorer">★ GitHub: openrouter-model-explorer</a></footer>
-
-<script>
-const MODELS = {models_json};
-let sortKey = 'provider';
-let sortAsc = true;
-
-const savedTheme = localStorage.getItem('or-theme');
-if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
-document.getElementById('themeToggle').addEventListener('click', () => {{
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('or-theme', next);
-}});
-
-function formatPrice(v) {{
-  if (v === 0) return '<span class="price-free">FREE</span>';
-  if (v < 1) return '<span class="price-low">$' + v.toFixed(2) + '</span>';
-  if (v < 10) return '<span class="price-mid">$' + v.toFixed(2) + '</span>';
-  return '<span class="price-high">$' + v.toFixed(2) + '</span>';
-}}
-
-function renderTable() {{
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const osFilter = document.getElementById('filterOS').value;
-  const reasonFilter = document.getElementById('filterReasoning').value;
-
-  let filtered = MODELS.filter(m => {{
-    if (q && !(m.provider + m.model + m.model_id + m.params + m.highlight).toLowerCase().includes(q)) return false;
-    if (osFilter === 'yes' && m.open_source !== '✅') return false;
-    if (osFilter === 'no' && m.open_source === '✅') return false;
-    if (reasonFilter === 'yes' && !m.reasoning.includes('✅')) return false;
-    if (reasonFilter === 'no' && m.reasoning.includes('✅')) return false;
-    return true;
-  }});
-
-  filtered.sort((a, b) => {{
-    let va = a[sortKey], vb = b[sortKey];
-    if (typeof va === 'number' && typeof vb === 'number') {{
-      return sortAsc ? va - vb : vb - va;
+      if (type === 'number') {{
+        return Number(a) - Number(b);
+      }}
+      return String(a).localeCompare(String(b), 'en', {{ numeric: true, sensitivity: 'base' }});
     }}
-    va = String(va).toLowerCase();
-    vb = String(vb).toLowerCase();
-    if (va < vb) return sortAsc ? -1 : 1;
-    if (va > vb) return sortAsc ? 1 : -1;
-    return 0;
-  }});
 
-  const tbody = document.getElementById('tableBody');
-  if (filtered.length === 0) {{
-    tbody.innerHTML = '';
-    document.getElementById('empty').style.display = 'block';
-    return;
-  }}
-  document.getElementById('empty').style.display = 'none';
+    function renderFlashshipSort() {{
+      const rows = Array.from(tableBody.querySelectorAll('tr'));
+      rows.sort((rowA, rowB) => {{
+        if (!sortKey) {{
+          return Number(rowA.dataset.originalIndex) - Number(rowB.dataset.originalIndex);
+        }}
 
-  tbody.innerHTML = filtered.map(m => `
-    <tr>
-      <td class="cell-provider"><span class="logo">${{m.logo}}</span>${{m.provider}}</td>
-      <td class="cell-model"><div class="model-name">${{m.model}}</div><div class="model-id">${{m.model_id}}</div></td>
-      <td>${{m.params}}</td>
-      <td class="cell-ctx">${{m.context}}</td>
-      <td class="cell-price">${{formatPrice(m.input_price)}}</td>
-      <td class="cell-price">${{formatPrice(m.output_price)}}</td>
-      <td>${{m.modality}}</td>
-      <td class="cell-center">${{m.reasoning}}</td>
-      <td class="cell-center">${{m.open_source}}</td>
-      <td class="cell-release">${{m.release}}</td>
-      <td class="cell-highlight">${{m.highlight}}</td>
-    </tr>
-  `).join('');
+        const type = sortHeaders.find(th => th.dataset.sort === sortKey)?.dataset.sortType || 'text';
+        const a = rowA.dataset[sortKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || '';
+        const b = rowB.dataset[sortKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || '';
+        const result = compareValues(a, b, type);
+        if (result !== 0) return sortAsc ? result : -result;
 
-  document.querySelectorAll('thead th').forEach(th => {{
-    const key = th.dataset.sort;
-    th.classList.toggle('sorted', key === sortKey);
-    const arrow = th.querySelector('.sort-arrow');
-    if (arrow) arrow.textContent = key === sortKey ? (sortAsc ? '↑' : '↓') : '↕';
-  }});
-}}
+        return Number(rowA.dataset.originalIndex) - Number(rowB.dataset.originalIndex);
+      }});
+      rows.forEach(row => tableBody.appendChild(row));
 
-document.querySelectorAll('thead th[data-sort]').forEach(th => {{
-  th.addEventListener('click', () => {{
-    const key = th.dataset.sort;
-    if (sortKey === key) sortAsc = !sortAsc;
-    else {{ sortKey = key; sortAsc = true; }}
-    renderTable();
-  }});
-}});
+      sortHeaders.forEach(th => {{
+        const active = th.dataset.sort === sortKey;
+        th.classList.toggle('sorted', active);
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) {{
+          arrow.textContent = active ? (sortAsc ? '↑' : '↓') : '↑';
+        }}
+      }});
+    }}
 
-document.getElementById('searchInput').addEventListener('input', renderTable);
-document.getElementById('filterOS').addEventListener('change', renderTable);
-document.getElementById('filterReasoning').addEventListener('change', renderTable);
+    Array.from(tableBody.querySelectorAll('tr')).forEach((row, index) => {{
+      row.dataset.originalIndex = String(index);
+    }});
 
-renderTable();
-</script>
+    sortHeaders.forEach(th => {{
+      th.addEventListener('click', () => {{
+        const nextKey = th.dataset.sort;
+        if (sortKey === nextKey) {{
+          sortAsc = !sortAsc;
+        }} else {{
+          sortKey = nextKey;
+          sortAsc = true;
+        }}
+        renderFlashshipSort();
+      }});
+    }});
+  </script>
 </body>
 </html>"""
+    return html

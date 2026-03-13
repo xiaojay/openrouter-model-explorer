@@ -5,6 +5,174 @@ import json
 import os
 import urllib.request
 from datetime import datetime
+from html import escape as html_escape
+
+
+FLASHSHIP_TARGETS = [
+    {
+        "slug": "openai",
+        "company": "OpenAI",
+        "family_label": "GPT-5.4",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["openai/gpt-5.4"],
+                "fallback_prefixes": ["openai/gpt-5.4"],
+            },
+            {
+                "label": "Pro",
+                "preferred_ids": ["openai/gpt-5.4-pro"],
+                "fallback_prefixes": ["openai/gpt-5.4-pro"],
+            },
+        ],
+    },
+    {
+        "slug": "anthropic",
+        "company": "Anthropic",
+        "family_label": "Claude 4.6",
+        "variants": [
+            {
+                "label": "Sonnet",
+                "preferred_ids": ["anthropic/claude-sonnet-4.6"],
+                "fallback_prefixes": ["anthropic/claude-sonnet-4.6"],
+            },
+            {
+                "label": "Opus",
+                "preferred_ids": ["anthropic/claude-opus-4.6"],
+                "fallback_prefixes": ["anthropic/claude-opus-4.6"],
+            },
+        ],
+    },
+    {
+        "slug": "google",
+        "company": "Google",
+        "family_label": "Gemini 3.1 Pro",
+        "variants": [
+            {
+                "label": "Preview",
+                "preferred_ids": ["google/gemini-3.1-pro-preview"],
+                "fallback_prefixes": ["google/gemini-3.1-pro-preview"],
+            },
+        ],
+    },
+    {
+        "slug": "grok",
+        "company": "Grok",
+        "family_label": "Grok 4.20",
+        "variants": [
+            {
+                "label": "Beta",
+                "preferred_ids": ["x-ai/grok-4.20-beta"],
+                "fallback_prefixes": ["x-ai/grok-4.20-beta"],
+            },
+            {
+                "label": "Multi-Agent Beta",
+                "preferred_ids": ["x-ai/grok-4.20-multi-agent-beta"],
+                "fallback_prefixes": ["x-ai/grok-4.20-multi-agent-beta"],
+            },
+        ],
+    },
+    {
+        "slug": "deepseek",
+        "company": "DeepSeek",
+        "family_label": "DeepSeek V3.2",
+        "variants": [
+            {
+                "label": "Base",
+                "preferred_ids": ["deepseek/deepseek-v3.2"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2"],
+            },
+            {
+                "label": "Exp",
+                "preferred_ids": ["deepseek/deepseek-v3.2-exp"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2-exp"],
+            },
+            {
+                "label": "Speciale",
+                "preferred_ids": ["deepseek/deepseek-v3.2-speciale"],
+                "fallback_prefixes": ["deepseek/deepseek-v3.2-speciale"],
+            },
+        ],
+    },
+    {
+        "slug": "qwen",
+        "company": "Qwen",
+        "family_label": "Qwen 3.5",
+        "variants": [
+            {
+                "label": "397B A17B",
+                "preferred_ids": ["qwen/qwen3.5-397b-a17b"],
+                "fallback_prefixes": ["qwen/qwen3.5-397b-a17b"],
+            },
+            {
+                "label": "122B A10B",
+                "preferred_ids": ["qwen/qwen3.5-122b-a10b"],
+                "fallback_prefixes": ["qwen/qwen3.5-122b-a10b"],
+            },
+            {
+                "label": "35B A3B",
+                "preferred_ids": ["qwen/qwen3.5-35b-a3b"],
+                "fallback_prefixes": ["qwen/qwen3.5-35b-a3b"],
+            },
+            {
+                "label": "27B",
+                "preferred_ids": ["qwen/qwen3.5-27b"],
+                "fallback_prefixes": ["qwen/qwen3.5-27b"],
+            },
+            {
+                "label": "9B",
+                "preferred_ids": ["qwen/qwen3.5-9b"],
+                "fallback_prefixes": ["qwen/qwen3.5-9b"],
+            },
+            {
+                "label": "Plus",
+                "preferred_ids": ["qwen/qwen3.5-plus-02-15"],
+                "fallback_prefixes": ["qwen/qwen3.5-plus"],
+            },
+            {
+                "label": "Flash",
+                "preferred_ids": ["qwen/qwen3.5-flash-02-23"],
+                "fallback_prefixes": ["qwen/qwen3.5-flash"],
+            },
+        ],
+    },
+    {
+        "slug": "kimi",
+        "company": "Kimi",
+        "family_label": "Kimi K2.5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["moonshotai/kimi-k2.5"],
+                "fallback_prefixes": ["moonshotai/kimi-k2.5"],
+            },
+        ],
+    },
+    {
+        "slug": "minimax",
+        "company": "MiniMax",
+        "family_label": "MiniMax M2.5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["minimax/minimax-m2.5"],
+                "fallback_prefixes": ["minimax/minimax-m2.5"],
+            },
+        ],
+    },
+    {
+        "slug": "z-ai",
+        "company": "Z.ai",
+        "family_label": "GLM-5",
+        "variants": [
+            {
+                "label": "Standard",
+                "preferred_ids": ["z-ai/glm-5"],
+                "fallback_prefixes": ["z-ai/glm-5"],
+            },
+        ],
+    },
+]
 
 
 def fetch_models():
@@ -60,7 +228,7 @@ def process_models(raw_models):
     return models
 
 
-def generate_html(models, fetch_time):
+def generate_html(models, fetch_time, flashship_url="/flashship"):
     """Generate the comparison HTML page."""
     # Collect unique providers and modalities for filters
     providers = sorted(set(m["provider"] for m in models))
@@ -252,6 +420,22 @@ body::after {{
 .toggle-pill:hover {{
   border-color: var(--accent-cyan);
   color: var(--text-secondary);
+}}
+
+.flashship-link {{
+  border-color: var(--accent-cyan);
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #67e8f9 100%);
+  color: #06202a;
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.22);
+}}
+
+.flashship-link:hover {{
+  color: #04151c;
+  transform: translateY(-1px);
+}}
+
+[data-theme="light"] .flashship-link {{
+  color: #ffffff;
 }}
 
 .toggle-pill svg {{
@@ -843,6 +1027,7 @@ tbody tr.row-selected:hover {{
     </div>
     <div class="header-right">
       <div class="toggle-group">
+        <a class="toggle-pill flashship-link" href="{html_escape(flashship_url)}">Flashship ↗</a>
         <button class="toggle-pill theme-toggle" id="themeToggle" title="Toggle light/dark">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
           <span data-i18n="theme">Theme</span>
@@ -1451,6 +1636,802 @@ renderTable();
     return html
 
 
+def select_flashship_variant(models, variant):
+    by_id = {m["id"]: m for m in models}
+
+    for preferred_id in variant["preferred_ids"]:
+        chosen = by_id.get(preferred_id)
+        if chosen and not chosen["id"].endswith(":free"):
+            return chosen
+
+    candidates = [
+        m for m in models
+        if any(m["id"].startswith(prefix) for prefix in variant["fallback_prefixes"])
+        and not m["id"].endswith(":free")
+    ]
+    candidates.sort(key=lambda m: (m["id"], m["context_length"], m["max_completion"]), reverse=True)
+    return candidates[0] if candidates else None
+
+
+def pick_flashship_models(models):
+    selected = []
+
+    for target in FLASHSHIP_TARGETS:
+        for variant in target["variants"]:
+            chosen = select_flashship_variant(models, variant)
+            row = {
+                "slug": target["slug"],
+                "company": target["company"],
+                "family_label": target["family_label"],
+                "variant_label": variant["label"],
+                "available": bool(chosen),
+            }
+            if chosen:
+                row.update(chosen)
+            selected.append(row)
+
+    return selected
+
+
+def format_context(value):
+    if not value:
+        return "—"
+    if value >= 1_000_000:
+        formatted = f"{value / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted}M"
+    if value >= 1000:
+        formatted = f"{value / 1000:.0f}" if value % 1000 == 0 else f"{value / 1000:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted}K"
+    return str(value)
+
+
+def format_price_html(value):
+    if value == 0:
+        return '<span class="price-free">FREE</span>'
+    if value < 1:
+        return f'<span class="price-low">${value:.4f}</span>'
+    if value < 10:
+        return f'<span class="price-mid">${value:.3f}</span>'
+    return f'<span class="price-high">${value:.2f}</span>'
+
+
+def format_price_text(value):
+    if value == 0:
+        return "FREE"
+    if value < 1:
+        return f"${value:.4f}"
+    if value < 10:
+        return f"${value:.3f}"
+    return f"${value:.2f}"
+
+
+def format_modalities_html(modalities):
+    if not modalities:
+        return "—"
+
+    labels = {
+        "text": "TEXT",
+        "image": "IMAGE",
+        "audio": "AUDIO",
+        "video": "VIDEO",
+        "file": "FILE",
+    }
+    return "".join(
+        f'<span class="modality-badge mod-{html_escape(mod)}">{html_escape(labels.get(mod, mod.upper()))}</span>'
+        for mod in modalities
+    )
+
+
+def format_params_html(params):
+    if not params:
+        return '<span class="muted">—</span>'
+
+    shown = params[:4]
+    html = "".join(f'<span class="param-badge">{html_escape(param)}</span>' for param in shown)
+    extra = len(params) - len(shown)
+    if extra > 0:
+        html += f'<span class="param-badge">+{extra}</span>'
+    return html
+
+
+def generate_flashship_html(models, fetch_time, explorer_url="/", flashship_url="/flashship"):
+    flashship_models = pick_flashship_models(models)
+    available_models = [m for m in flashship_models if m["available"]]
+    tracked_variants = len(flashship_models)
+    available_count = len(available_models)
+    lowest_input = min((m["prompt_price_1m"] for m in available_models), default=0)
+    max_ctx = max((m["context_length"] for m in available_models), default=0)
+    max_output = max((m["max_completion"] for m in available_models), default=0)
+
+    fetch_str = fetch_time.strftime("%Y-%m-%d %H:%M:%S")
+    subtitle = "OpenAI / Anthropic / Google / Grok / DeepSeek / Qwen / Kimi / MiniMax / Z.ai"
+
+    paid_inputs = [m["prompt_price_1m"] for m in available_models if m["prompt_price_1m"] > 0]
+    paid_outputs = [m["completion_price_1m"] for m in available_models if m["completion_price_1m"] > 0]
+    min_input = min(paid_inputs) if paid_inputs else 0
+    min_output = min(paid_outputs) if paid_outputs else 0
+
+    rows = []
+    for row in flashship_models:
+        if not row["available"]:
+            rows.append(
+                f"""<tr data-company="{html_escape(row["company"])}" data-family="{html_escape(row["family_label"])}" data-variant="{html_escape(row["variant_label"])}" data-model="Unavailable" data-input="" data-output="" data-reasoning="" data-context="" data-max-output="" data-modalities="" data-params="0">
+  <td class="cell-provider">{html_escape(row["company"])}</td>
+  <td class="cell-family">{html_escape(row["family_label"])}</td>
+  <td class="cell-family">{html_escape(row["variant_label"])}</td>
+  <td class="cell-model"><div class="model-name">Unavailable</div></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-price"><span class="muted">—</span></td>
+  <td class="cell-ctx"><span class="muted">—</span></td>
+  <td class="cell-ctx"><span class="muted">—</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="muted">—</span></td>
+</tr>"""
+            )
+            continue
+
+        input_html = format_price_html(row["prompt_price_1m"])
+        if row["prompt_price_1m"] == 0 or row["prompt_price_1m"] == min_input:
+            input_html = f'<span class="cmp-best">{input_html}</span>'
+
+        output_html = format_price_html(row["completion_price_1m"])
+        if row["completion_price_1m"] == 0 or row["completion_price_1m"] == min_output:
+            output_html = f'<span class="cmp-best">{output_html}</span>'
+
+        context_html = html_escape(format_context(row["context_length"]))
+        if row["context_length"] == max_ctx:
+            context_html = f'<span class="cmp-best">{context_html}</span>'
+
+        max_output_html = html_escape(format_context(row["max_completion"]))
+        if row["max_completion"] == max_output:
+            max_output_html = f'<span class="cmp-best">{max_output_html}</span>'
+
+        modality_sort = " ".join(row["input_modalities"] + row["output_modalities"])
+        params_sort = str(len(row["supported_params"]))
+        rows.append(
+            f"""<tr data-company="{html_escape(row["company"])}" data-family="{html_escape(row["family_label"])}" data-variant="{html_escape(row["variant_label"])}" data-model="{html_escape(row["name"] + ' ' + row["id"])}" data-input="{row["prompt_price_1m"]}" data-output="{row["completion_price_1m"]}" data-reasoning="{row["reasoning_price_1m"]}" data-context="{row["context_length"]}" data-max-output="{row["max_completion"]}" data-modalities="{html_escape(modality_sort)}" data-params="{params_sort}">
+  <td class="cell-provider">{html_escape(row["company"])}</td>
+  <td class="cell-family">{html_escape(row["family_label"])}</td>
+  <td class="cell-family">{html_escape(row["variant_label"])}</td>
+  <td class="cell-model">
+    <div class="model-name">{html_escape(row["name"])}</div>
+    <div class="model-id">{html_escape(row["id"])}</div>
+    <div class="model-desc">{html_escape(row["description"])}</div>
+  </td>
+  <td class="cell-price">{input_html}</td>
+  <td class="cell-price">{output_html}</td>
+  <td class="cell-price">{format_price_html(row["reasoning_price_1m"])}</td>
+  <td class="cell-ctx">{context_html}</td>
+  <td class="cell-ctx">{max_output_html}</td>
+  <td>
+    <div class="modality-stack">
+      <div class="modality-row"><span class="muted">IN</span>{format_modalities_html(row["input_modalities"])}</div>
+      <div class="modality-row"><span class="muted">OUT</span>{format_modalities_html(row["output_modalities"])}</div>
+    </div>
+  </td>
+  <td><div class="param-badges">{format_params_html(row["supported_params"])}</div></td>
+</tr>"""
+        )
+
+    rows_html = "\n".join(rows)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashship — {fetch_time.strftime('%Y-%m-%d %H:%M')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
+[data-theme="dark"] {{
+  --bg-deep: #0a0e17;
+  --bg-surface: #111825;
+  --bg-card: #1a2235;
+  --bg-hover: #212d45;
+  --border: #2a3550;
+  --border-bright: #3d4f6f;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8892a8;
+  --text-dim: #5a6578;
+  --accent-cyan: #22d3ee;
+  --accent-cyan-dim: rgba(34,211,238,0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-dim: rgba(251,191,36,0.10);
+  --accent-green: #34d399;
+  --accent-green-dim: rgba(52,211,153,0.10);
+  --accent-rose: #fb7185;
+  --accent-rose-dim: rgba(251,113,133,0.10);
+  --accent-violet: #a78bfa;
+  --accent-violet-dim: rgba(167,139,250,0.10);
+  --grain-opacity: 0.03;
+  --glow-opacity: 0.06;
+  --scrollbar-track: #0a0e17;
+}}
+
+[data-theme="light"] {{
+  --bg-deep: #f4f6f9;
+  --bg-surface: #eaecf1;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f2f7;
+  --border: #d5d9e2;
+  --border-bright: #bfc5d2;
+  --text-primary: #1a1d26;
+  --text-secondary: #555d6e;
+  --text-dim: #8891a0;
+  --accent-cyan: #0891b2;
+  --accent-cyan-dim: rgba(8,145,178,0.08);
+  --accent-amber: #d97706;
+  --accent-amber-dim: rgba(217,119,6,0.07);
+  --accent-green: #059669;
+  --accent-green-dim: rgba(5,150,105,0.07);
+  --accent-rose: #e11d48;
+  --accent-rose-dim: rgba(225,29,72,0.06);
+  --accent-violet: #7c3aed;
+  --accent-violet-dim: rgba(124,58,237,0.07);
+  --grain-opacity: 0.015;
+  --glow-opacity: 0.03;
+  --scrollbar-track: #f4f6f9;
+}}
+
+:root {{
+  --radius: 8px;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+  --font-sans: 'Instrument Sans', system-ui, sans-serif;
+}}
+
+html {{ scroll-behavior: smooth; }}
+
+body {{
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  transition: background 0.3s, color 0.3s;
+}}
+
+body::before {{
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}}
+
+body::after {{
+  content: '';
+  position: fixed;
+  top: -200px;
+  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(34,211,238,var(--glow-opacity)) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}}
+
+.container {{
+  position: relative;
+  z-index: 1;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}}
+
+.header {{
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  animation: fadeDown 0.6s ease-out;
+  gap: 16px;
+}}
+
+.header-left h1 {{
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}}
+
+.subtitle {{
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}}
+
+.header-right {{
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}}
+
+.header .meta {{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+  line-height: 1.8;
+}}
+
+.header .meta span {{
+  color: var(--accent-cyan);
+}}
+
+.toggle-group {{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}}
+
+.toggle-pill {{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s;
+  user-select: none;
+  text-decoration: none;
+}}
+
+.toggle-pill:hover {{
+  border-color: var(--accent-cyan);
+  color: var(--text-secondary);
+}}
+
+.toggle-pill.is-active {{
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+}}
+
+.toggle-pill svg {{
+  width: 14px;
+  height: 14px;
+  transition: transform 0.3s;
+}}
+
+[data-theme="light"] .toggle-pill.theme-toggle svg {{ transform: rotate(180deg); }}
+
+.stats-bar {{
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  animation: fadeDown 0.6s ease-out 0.1s both;
+}}
+
+.stat-card {{
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  flex: 1;
+  min-width: 180px;
+}}
+
+.stat-card .label {{
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}}
+
+.stat-card .value {{
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accent-cyan);
+}}
+
+.stat-card .value.green {{ color: var(--accent-green); }}
+.stat-card .value.amber {{ color: var(--accent-amber); }}
+.stat-card .value.rose {{ color: var(--accent-rose); }}
+
+.info-card {{
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  color: var(--text-secondary);
+  animation: fadeDown 0.6s ease-out 0.15s both;
+}}
+
+.info-card strong {{
+  color: var(--text-primary);
+}}
+
+.table-wrap {{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeUp 0.6s ease-out 0.2s both;
+}}
+
+.table-scroll {{
+  overflow-x: auto;
+}}
+
+table {{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}}
+
+thead th {{
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-bright);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}}
+
+thead th.sortable {{
+  cursor: pointer;
+  user-select: none;
+}}
+
+thead th.sortable:hover {{
+  color: var(--accent-cyan);
+}}
+
+thead th.sorted {{
+  color: var(--accent-cyan);
+}}
+
+.sort-arrow {{
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.4;
+  font-size: 10px;
+}}
+
+thead th.sorted .sort-arrow {{
+  opacity: 1;
+}}
+
+tbody tr {{
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}}
+
+tbody tr:hover {{
+  background: var(--bg-hover);
+}}
+
+tbody td {{
+  padding: 12px 16px;
+  white-space: nowrap;
+  vertical-align: top;
+}}
+
+.cell-provider {{
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}}
+
+.cell-family {{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}}
+
+.cell-model {{
+  min-width: 360px;
+  max-width: 420px;
+  white-space: normal;
+}}
+
+.model-name {{
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}}
+
+.model-id {{
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  word-break: break-all;
+}}
+
+.model-desc {{
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}}
+
+.cell-price, .cell-ctx {{
+  font-family: var(--font-mono);
+  font-size: 13px;
+}}
+
+.price-free {{ color: var(--accent-green); font-weight: 500; }}
+.price-low {{ color: var(--accent-green); }}
+.price-mid {{ color: var(--accent-amber); }}
+.price-high {{ color: var(--accent-rose); }}
+
+.modality-badge {{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 1px 2px 1px 0;
+}}
+
+.mod-text {{ background: var(--accent-cyan-dim); color: var(--accent-cyan); }}
+.mod-image {{ background: var(--accent-violet-dim); color: var(--accent-violet); }}
+.mod-audio {{ background: var(--accent-amber-dim); color: var(--accent-amber); }}
+.mod-video {{ background: var(--accent-rose-dim); color: var(--accent-rose); }}
+.mod-file {{ background: var(--accent-green-dim); color: var(--accent-green); }}
+
+.modality-stack {{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}}
+
+.modality-row {{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}}
+
+.param-badges {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 240px;
+}}
+
+.param-badge {{
+  font-size: 9px;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}}
+
+.cmp-best {{
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-green-dim);
+}}
+
+.muted {{
+  color: var(--text-dim);
+}}
+
+.footer {{
+  margin-top: 20px;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: right;
+}}
+
+@keyframes fadeDown {{
+  from {{ opacity: 0; transform: translateY(-12px); }}
+  to {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@keyframes fadeUp {{
+  from {{ opacity: 0; transform: translateY(12px); }}
+  to {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@media (max-width: 768px) {{
+  .container {{ padding: 24px 16px; }}
+  .header {{ flex-direction: column; align-items: flex-start; }}
+  .header-right {{ width: 100%; flex-direction: column; align-items: flex-start; }}
+  .header .meta {{ text-align: left; }}
+  .toggle-group {{ justify-content: flex-start; }}
+  .stat-card {{ min-width: 140px; }}
+  .cell-model {{ min-width: 280px; }}
+}}
+
+::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+::-webkit-scrollbar-track {{ background: var(--scrollbar-track); }}
+::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
+::-webkit-scrollbar-thumb:hover {{ background: var(--border-bright); }}
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <h1>Flashship Frontier Table</h1>
+        <div class="subtitle">{html_escape(subtitle)}</div>
+      </div>
+      <div class="header-right">
+        <div class="meta">
+          Source <span>OpenRouter</span><br>
+          Updated <span>{fetch_str}</span>
+        </div>
+        <div class="toggle-group">
+          <a class="toggle-pill" href="{html_escape(explorer_url)}">Explorer</a>
+          <a class="toggle-pill is-active" href="{html_escape(flashship_url)}">Flashship</a>
+          <button class="toggle-pill theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 3v2.5M12 18.5V21M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M3 12h2.5M18.5 12H21M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/>
+            </svg>
+            Theme
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats-bar">
+      <div class="stat-card">
+        <div class="label">Tracked Companies</div>
+        <div class="value">{len(FLASHSHIP_TARGETS)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Tracked Variants</div>
+        <div class="value green">{tracked_variants}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Available Variants</div>
+        <div class="value green">{available_count}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Lowest Input</div>
+        <div class="value amber">{html_escape(format_price_text(lowest_input))}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Largest Context</div>
+        <div class="value rose">{format_context(max_ctx)}</div>
+      </div>
+    </section>
+
+    <section class="info-card">
+      <strong>Selection rule:</strong> each company is pinned to its current latest model family, and this page includes all maintained core variants inside that same family, including lighter and fuller tiers when OpenRouter exposes them. All prices, context, max output and supported parameters come directly from the matched OpenRouter payload. Cheapest input/output and largest context/max output are highlighted.
+    </section>
+
+    <section class="table-wrap">
+      <div class="table-scroll">
+        <table id="flashshipTable">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="company" data-sort-type="text">Company <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="family" data-sort-type="text">Family <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="variant" data-sort-type="text">Variant <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="model" data-sort-type="text">Model <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="input" data-sort-type="number">Input $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="output" data-sort-type="number">Output $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="reasoning" data-sort-type="number">Reasoning $/1M <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="context" data-sort-type="number">Context <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="max-output" data-sort-type="number">Max Output <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="modalities" data-sort-type="text">Modalities <span class="sort-arrow">↑</span></th>
+              <th class="sortable" data-sort="params" data-sort-type="number">Supported Params <span class="sort-arrow">↑</span></th>
+            </tr>
+          </thead>
+          <tbody id="flashshipTableBody">
+            {rows_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="footer">Max output leader: {html_escape(format_context(max_output))}</div>
+  </div>
+
+    <script>
+      const root = document.documentElement;
+      const toggle = document.getElementById('themeToggle');
+      const tableBody = document.getElementById('flashshipTableBody');
+      const sortHeaders = Array.from(document.querySelectorAll('#flashshipTable thead th.sortable'));
+      const storedTheme = localStorage.getItem('theme') || 'dark';
+      root.setAttribute('data-theme', storedTheme);
+      toggle.addEventListener('click', () => {{
+        const nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('theme', nextTheme);
+      }});
+
+      let sortKey = null;
+      let sortAsc = true;
+
+      function compareValues(a, b, type) {{
+        const aMissing = a === '';
+        const bMissing = b === '';
+        if (aMissing && bMissing) return 0;
+        if (aMissing) return 1;
+        if (bMissing) return -1;
+
+        if (type === 'number') {{
+          return Number(a) - Number(b);
+        }}
+        return String(a).localeCompare(String(b), 'en', {{ numeric: true, sensitivity: 'base' }});
+      }}
+
+      function renderFlashshipSort() {{
+        const rows = Array.from(tableBody.querySelectorAll('tr'));
+        rows.sort((rowA, rowB) => {{
+          if (!sortKey) {{
+            return Number(rowA.dataset.originalIndex) - Number(rowB.dataset.originalIndex);
+          }}
+
+          const header = sortHeaders.find(th => th.dataset.sort === sortKey);
+          const type = header ? header.dataset.sortType : 'text';
+          const dataKey = sortKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          const a = rowA.dataset[dataKey] || '';
+          const b = rowB.dataset[dataKey] || '';
+          const result = compareValues(a, b, type);
+          if (result !== 0) return sortAsc ? result : -result;
+
+          return Number(rowA.dataset.originalIndex) - Number(rowB.dataset.originalIndex);
+        }});
+        rows.forEach(row => tableBody.appendChild(row));
+
+        sortHeaders.forEach(th => {{
+          const active = th.dataset.sort === sortKey;
+          th.classList.toggle('sorted', active);
+          const arrow = th.querySelector('.sort-arrow');
+          if (arrow) {{
+            arrow.textContent = active ? (sortAsc ? '↑' : '↓') : '↑';
+          }}
+        }});
+      }}
+
+      Array.from(tableBody.querySelectorAll('tr')).forEach((row, index) => {{
+        row.dataset.originalIndex = String(index);
+      }});
+
+      sortHeaders.forEach(th => {{
+        th.addEventListener('click', () => {{
+          const nextKey = th.dataset.sort;
+          if (sortKey === nextKey) {{
+            sortAsc = !sortAsc;
+          }} else {{
+            sortKey = nextKey;
+            sortAsc = true;
+          }}
+          renderFlashshipSort();
+        }});
+      }});
+    </script>
+</body>
+</html>"""
+    return html
+
+
 def main():
     print("Fetching models from OpenRouter...")
     models = fetch_models()
@@ -1460,16 +2441,31 @@ def main():
     print(f"  Processed {len(processed)} models")
 
     fetch_time = datetime.now()
-    html = generate_html(processed, fetch_time)
+    explorer_filename = f"output/models_{fetch_time.strftime('%Y%m%d_%H%M%S')}.html"
+    flashship_filename = f"output/flashship_{fetch_time.strftime('%Y%m%d_%H%M%S')}.html"
+
+    html = generate_html(
+        processed,
+        fetch_time,
+        flashship_url=os.path.basename(flashship_filename),
+    )
+    flashship_html = generate_flashship_html(
+        processed,
+        fetch_time,
+        explorer_url=os.path.basename(explorer_filename),
+        flashship_url=os.path.basename(flashship_filename),
+    )
 
     os.makedirs("output", exist_ok=True)
-    filename = f"output/models_{fetch_time.strftime('%Y%m%d_%H%M%S')}.html"
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(explorer_filename, "w", encoding="utf-8") as f:
         f.write(html)
+    with open(flashship_filename, "w", encoding="utf-8") as f:
+        f.write(flashship_html)
 
-    print(f"  Generated: {filename}")
+    print(f"  Generated explorer: {explorer_filename}")
+    print(f"  Generated flashship: {flashship_filename}")
     print("Done!")
-    return filename
+    return explorer_filename, flashship_filename
 
 
 if __name__ == "__main__":

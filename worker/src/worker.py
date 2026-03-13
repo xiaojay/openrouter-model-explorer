@@ -1058,6 +1058,7 @@ tbody tr.row-selected:hover {{
       <h1 data-i18n="title">OpenRouter Model Explorer</h1>
     </div>
     <div class="header-right">
+      <a href="/flagship" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:20px;background:linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15));border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:13px;font-weight:700;text-decoration:none;transition:all .25s;white-space:nowrap;" onmouseover="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.25),rgba(167,139,250,0.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.15))'">🏆 旗舰模型对比</a>
       <div class="toggle-group">
         <a class="toggle-pill flashship-link" href="{html_escape(flashship_url)}">Flashship ↗</a>
         <button class="toggle-pill theme-toggle" id="themeToggle" title="Toggle light/dark">
